@@ -178,7 +178,7 @@ async fn run() {
    let bot = Bot::from_env();
 
    // Логин к БД
-   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing");
+   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing") + " sslmode=require";
    // Откроем БД
    let (client, connection) =
       tokio_postgres::connect(&database_url, NoTls).await

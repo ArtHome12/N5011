@@ -179,6 +179,8 @@ async fn run() {
 
    // Логин к БД
    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing");
+   log::info!("{}", database_url);
+
    // Откроем БД
    let (client, connection) =
       tokio_postgres::connect(&database_url, NoTls).await

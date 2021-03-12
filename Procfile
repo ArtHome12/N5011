@@ -1,1 +1,1 @@
-web: ./target/release/n5011_bot
+web: ./target/release/n5011

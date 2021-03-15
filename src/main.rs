@@ -19,10 +19,8 @@ use std::{convert::Infallible, env, net::SocketAddr, };
 use tokio::{sync::mpsc, };
 use warp::Filter;
 use reqwest::StatusCode;
-// use tokio_postgres::{NoTls};
-use openssl::ssl::{SslConnector, SslMethod};
-// use tokio_postgres_openssl::MakeTlsConnector;
-
+use native_tls::{Certificate, TlsConnector};
+use postgres_native_tls::MakeTlsConnector;
 
 mod database;
 use database as db;
@@ -181,15 +179,18 @@ async fn run() {
    let bot = Bot::from_env();
 
    // Логин к БД
-   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing");
+   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing") + " sslmode=require";
    log::info!("{}", database_url);
 
-   let mut builder = SslConnector::builder(SslMethod::tls()).unwrap();
-   // builder.set_ca_file("database_cert.pem").unwrap();
+   let connector = TlsConnector::builder()
+   // .add_root_certificate(cert)
+   .build()?;
+   let connector = MakeTlsConnector::new(connector);
+
    
    // Откроем БД
    let (client, connection) =
-      tokio_postgres::connect(&database_url, MakeTlsConnector::new(builder.build())).await
+      tokio_postgres::connect(&database_url, connector).await
          .expect("Cannot connect to database");
 
    // The connection object performs the actual communication with the database,

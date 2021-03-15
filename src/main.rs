@@ -44,6 +44,7 @@ enum Command {
       time: u32,
       unit: UnitOfTime,
    },
+   // List,
    Help,
 }
 
@@ -218,7 +219,7 @@ async fn run() {
 
    let bot = Bot::from_env();
 
-   let cloned_bot = bot.clone();
+  /*  let cloned_bot = bot.clone();
    let bot_name= "N5011_bot";
    teloxide::commands_repl_with_listener(
       bot,
@@ -226,5 +227,52 @@ async fn run() {
       action,
       webhook(cloned_bot).await,
    )
+   .await; */
+
+   Dispatcher::new(bot.clone())
+   .messages_handler(|rx: DispatcherHandlerRx<Message>| {
+      rx.for_each_concurrent(None, |message| async move {
+         handle_message(message).await.expect("Something wrong with the bot!");
+      })
+   })
+   /* .callback_queries_handler(|rx: DispatcherHandlerRx<CallbackQuery>| {
+      rx.for_each_concurrent(None, |cx| async move {
+         handle_callback(cx).await
+      })
+   }) */
+   .dispatch_with_listener(
+      webhook(bot).await,
+      LoggingErrorHandler::with_custom_text("An error from the update listener"),
+   )
    .await;
+
+}
+
+async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
+
+   // Для различения, в личку или в группу пишут
+   let chat_id = cx.update.chat_id();
+
+   // Обрабатываем сообщение, только если оно пришло в личку
+   if chat_id < 0 {
+      return Ok(cx.update);
+   }
+
+   match cx.update.text() {
+      None => cx.answer_str("Текстовое сообщение, пожалуйста!").await,
+      Some(text) => {
+         // Попробуем получить команду
+         if let Ok(command) = Command::parse(text, "n5011_bot") {
+            let cx_update = cx.update.clone();
+            action(cx, command)
+            .await
+            .map(|_| Ok(cx_update))?
+         } else {
+            cx.reply_to("Выберите чат для отправки")
+            // .reply_markup(db::chats_markup().await)
+            .send()
+            .await
+         }
+      }
+   }
 }

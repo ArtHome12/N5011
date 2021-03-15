@@ -8,8 +8,13 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use std::str::FromStr;
-
+use std::{convert::Infallible, env, net::SocketAddr};
 use teloxide::{prelude::*, types::ChatPermissions, utils::command::BotCommand};
+use teloxide::{dispatching::update_listeners, };
+use tokio::sync::mpsc;
+use warp::Filter;
+
+use reqwest::StatusCode;
 
 // Derive BotCommand to parse text with a command into this enumeration.
 //
@@ -214,12 +219,11 @@ async fn run() {
    let bot = Bot::from_env();
 
    let cloned_bot = bot.clone();
+   let bot_name: String = panic!("N5011_bot");
    teloxide::commands_repl_with_listener(
       bot,
-      |message| async move {
-         message.answer_str("pong").await?;
-         ResponseResult::<()>::Ok(())
-      },
+      &bot_name,
+      action,
       webhook(cloned_bot).await,
    )
    .await;

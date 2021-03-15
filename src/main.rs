@@ -189,10 +189,12 @@ async fn run() {
    let connector = MakeTlsConnector::new(connector);
 
    // Откроем БД
+   log::info!("Here 1");
    let (client, connection) =
       tokio_postgres::connect(&database_url, connector).await
          .expect("Cannot connect to database");
 
+   log::info!("Here 2");
    // The connection object performs the actual communication with the database,
    // so spawn it off to run on its own.
    tokio::spawn(async move {

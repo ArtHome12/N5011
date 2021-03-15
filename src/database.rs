@@ -8,9 +8,8 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use once_cell::sync::{OnceCell};
-use arraylib::iter::IteratorExt;
 use teloxide::{
-   types::{InlineKeyboardMarkup, InlineKeyboardButton, },
+   types::{InlineKeyboardMarkup, /* InlineKeyboardButton, */ },
 };
 
 // Клиент БД
@@ -80,7 +79,7 @@ pub async fn user_id(chat_name: &String) -> Option<i32> {
 
 /// Возвращает список кнопок с чатами
 pub async fn chats_markup() -> InlineKeyboardMarkup {
-   let client = DB.get().unwrap();
+/*    let client = DB.get().unwrap();
    match client.query("SELECT chat_name FROM chats", &[]).await {
       Ok(rows) => {
          // Создадим кнопки
@@ -103,7 +102,8 @@ pub async fn chats_markup() -> InlineKeyboardMarkup {
 
       },
       _ => InlineKeyboardMarkup::default(),
-   }
+   }*/
+   InlineKeyboardMarkup::default()
 }
 
 // Увеличивает счётчик ошибок и если стало слишком много, удаляет чат

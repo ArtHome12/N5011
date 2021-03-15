@@ -19,7 +19,7 @@ use std::{convert::Infallible, env, net::SocketAddr, };
 use tokio::{sync::mpsc, };
 use warp::Filter;
 use reqwest::StatusCode;
-use native_tls::{Certificate, TlsConnector};
+use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 
 mod database;
@@ -184,7 +184,7 @@ async fn run() {
 
    let connector = TlsConnector::builder()
    // .add_root_certificate(cert)
-   .build()?;
+   .build().unwrap();
    let connector = MakeTlsConnector::new(connector);
 
    

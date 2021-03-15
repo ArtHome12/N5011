@@ -219,10 +219,10 @@ async fn run() {
    let bot = Bot::from_env();
 
    let cloned_bot = bot.clone();
-   let bot_name: String = panic!("N5011_bot");
+   let bot_name= "N5011_bot";
    teloxide::commands_repl_with_listener(
       bot,
-      &bot_name,
+      bot_name,
       action,
       webhook(cloned_bot).await,
    )

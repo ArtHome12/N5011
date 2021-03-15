@@ -1,120 +1,143 @@
 /* ===============================================================================
 Bot to support Telegram channel of 2:5011 Fidonet
-Main module. 12 March 2021.
+Main module, based on teloxide/examples/admin_bot. 12 March 2021.
 ----------------------------------------------------------------------------
 Licensed under the terms of the GPL version 3.
 http://www.gnu.org/licenses/gpl-3.0.html
 Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
-use teloxide::{
-   dispatching::update_listeners,
-   prelude::*,
-   utils::command::BotCommand,
-   types::{ChatId, /* InlineKeyboardMarkup, InlineKeyboardButton, */ CallbackQuery, 
-      /* ChatOrInlineMessage, */
-   },
-};
-use std::{convert::Infallible, env, net::SocketAddr, };
-use tokio::{sync::mpsc, };
-use warp::Filter;
-use reqwest::StatusCode;
-use native_tls::{TlsConnector};
-use postgres_native_tls::MakeTlsConnector;
-// use tokio_postgres::{NoTls};
+use std::str::FromStr;
 
-mod database;
-use database as db;
+use teloxide::{prelude::*, types::ChatPermissions, utils::command::BotCommand};
 
+// Derive BotCommand to parse text with a command into this enumeration.
+//
+//  1. rename = "lowercase" turns all the commands into lowercase letters.
+//  2. `description = "..."` specifies a text before all the commands.
+//
+// That is, you can just call Command::descriptions() to get a description of
+// your commands in this format:
+// %GENERAL-DESCRIPTION%
+// %PREFIX%%COMMAND% - %DESCRIPTION%
 #[derive(BotCommand)]
-#[command(rename = "lowercase", description = "Поддерживаются команды:")]
+#[command(
+   rename = "lowercase",
+   description = "Use commands in format /%command% %num% %unit%",
+   parse_with = "split"
+)]
 enum Command {
-   Start,
-   #[command(description = "выводит этот текст.")]
+   #[command(description = "kick user from chat.")]
+   Kick,
+   #[command(description = "ban user in chat.")]
+   Ban {
+      time: u32,
+      unit: UnitOfTime,
+   },
+   #[command(description = "mute user in chat.")]
+   Mute {
+      time: u32,
+      unit: UnitOfTime,
+   },
    Help,
-   #[command(description = "регистрация новой публичной группы, например для группы t.me/your_chat надо отправить '/register @your_chat', бот должен быть добавлен в этот чат, иначе он не сможет отправлять сообщения. Вы можете быть администратором только одного чата, при регистрации нового предыдущий будет забыт.")]
-   Register(String),
-   #[command(description = "указание боту забыть чат.")]
-   Unregister,
 }
 
-// async fn handle_message(cx: UpdateWithCx) {
-async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
+enum UnitOfTime {
+   Seconds,
+   Minutes,
+   Hours,
+}
 
-   // Для различения, в личку или в группу пишут
-   let chat_id = cx.update.chat_id();
-
-   // Обрабатываем сообщение, только если оно пришло в личку
-   if chat_id < 0 {
-      return Ok(cx.update);
-   }
-   
-   match cx.update.text() {
-      None => cx.answer_str("Текстовое сообщение, пожалуйста!").await,
-      Some(text) => {
-         // Попробуем получить команду
-         if let Ok(command) = Command::parse(text, "cognito_bot") {
-            match command {
-               Command::Start => cx.answer_str(String::from("Добро пожаловать. Отправьте сообщение, выберите чат из списка зарегистрированных в боте и оно будет направлено на модерацию администратору чата (он не будет знать, от кого). Если администратор одобрит его публикацию, сообщение будет отправлено ботом в чат также анонимно. Все поддерживаемые команды: /help")).await,
-               Command::Help => cx.answer_str(Command::descriptions()).await,
-               Command::Register(chat_name) => {
-                  let res = if chat_name.is_empty() {String::from("После команды /register надо указать имя чата, например если имя вашего чата @your_chat, то введите вручную и отправьте отдельным сообщением /register @your_chat")}
-                  else {
-                     if chat_name.get(0..1).unwrap_or_default() != "@" {format!("Имя чата должно начинаться со знака @, а вы ввели '{}'", chat_name)}
-                     else {
-                        // Если чат с таким именем уже зарегистрирован, сообщим об ошибке
-                        if db::user_id(&chat_name.clone()).await.is_some() {
-                           String::from("Такой чат уже зарегистрирован")
-                        } else {
-                           // Пробуем отправить приветственное сообщение в чат
-                           let chat_id = ChatId::ChannelUsername(chat_name.clone());
-                           let res = cx.bot
-                           .send_message(chat_id, "Приветствую вас. Я бот-анонимайзер, напишите мне в личку, я от своего имени перешлю сообщение админу и если он одобрит, я от своего имени перешлю его сюда и никто, кроме вас самого, не будет знать, от кого оно")
-                           .send()
-                           .await;
-                           match res {
-                              Ok(_) => {
-                                 // Всё хорошо, сохраним регистрацию
-                                 let user_id = cx.update.from().unwrap().id;
-                                 db::register(user_id, chat_name).await;
-                                 String::from("Регистрация успешна. Если бот не сможет отправить сообщение в чат или его услугами не будут пользоваться более 3-х месяцев, информация о нём будет стёрта, но вы всегда сможете зарегистрировать его заново")
-                              }
-                              Err(e) => format!("Не удалось отправить сообщение в чат, возможно вы забыли меня в него добавить: {}", e)
-                           }
-                        }
-                     }
-                  };
-                  cx.answer_str(res).await
-               }
-               Command::Unregister => {
-                  let user_id = cx.update.from().unwrap().id;
-
-                  // Проверим, что какой-нибудь чат был зарегистрирован
-                  let res = match db::user_chat_name(user_id).await {
-                     Some(chat_name) => {
-                        // Удаляем чат и сообщаем об этом
-                        db::unregister(user_id).await;
-                        format!("Информация о чате {} удалена", chat_name)
-                     }
-                     None => String::from("Зарегистрированного вами чата не числится, если вы его регистрировали, то возможно он был удалён автоматически при ошибке отправки в него сообщений или из-за долгого бездействия")
-                  };
-                  cx.answer_str(res).await
-               }
-            }
-         } else {
-            cx.reply_to("Выберите чат для отправки")
-            .reply_markup(db::chats_markup().await)
-            .send()
-            .await
-         }
+impl FromStr for UnitOfTime {
+   type Err = &'static str;
+   fn from_str(s: &str) -> Result<Self, <Self as FromStr>::Err> {
+      match s {
+         "h" | "hours" => Ok(UnitOfTime::Hours),
+         "m" | "minutes" => Ok(UnitOfTime::Minutes),
+         "s" | "seconds" => Ok(UnitOfTime::Seconds),
+         _ => Err("Allowed units: h, m, s"),
       }
    }
 }
 
-#[tokio::main]
-async fn main() {
-   run().await;
+// Calculates time of user restriction.
+fn calc_restrict_time(time: u32, unit: UnitOfTime) -> u32 {
+   match unit {
+      UnitOfTime::Hours => time * 3600,
+      UnitOfTime::Minutes => time * 60,
+      UnitOfTime::Seconds => time,
+   }
 }
+
+type Cx = UpdateWithCx<Message>;
+
+// Mute a user with a replied message.
+async fn mute_user(cx: &Cx, time: u32) -> ResponseResult<()> {
+   match cx.update.reply_to_message() {
+      Some(msg1) => {
+         cx.bot
+               .restrict_chat_member(
+                  cx.update.chat_id(),
+                  msg1.from().expect("Must be MessageKind::Common").id,
+                  ChatPermissions::default(),
+               )
+               .until_date(cx.update.date + time as i32)
+               .send()
+               .await?;
+      }
+      None => {
+         cx.reply_to("Use this command in reply to another message").send().await?;
+      }
+   }
+   Ok(())
+}
+
+// Kick a user with a replied message.
+async fn kick_user(cx: &Cx) -> ResponseResult<()> {
+   match cx.update.reply_to_message() {
+      Some(mes) => {
+         // bot.unban_chat_member can also kicks a user from a group chat.
+         cx.bot.unban_chat_member(cx.update.chat_id(), mes.from().unwrap().id).send().await?;
+      }
+      None => {
+         cx.reply_to("Use this command in reply to another message").send().await?;
+      }
+   }
+   Ok(())
+}
+
+// Ban a user with replied message.
+async fn ban_user(cx: &Cx, time: u32) -> ResponseResult<()> {
+   match cx.update.reply_to_message() {
+      Some(message) => {
+         cx.bot
+               .kick_chat_member(
+                  cx.update.chat_id(),
+                  message.from().expect("Must be MessageKind::Common").id,
+               )
+               .until_date(cx.update.date + time as i32)
+               .send()
+               .await?;
+      }
+      None => {
+         cx.reply_to("Use this command in a reply to another message!").send().await?;
+      }
+   }
+   Ok(())
+}
+
+async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<()> {
+   match command {
+      Command::Help => cx.answer(Command::descriptions()).send().await.map(|_| ())?,
+      Command::Kick => kick_user(&cx).await?,
+      Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
+      Command::Mute { time, unit } => mute_user(&cx, calc_restrict_time(time, unit)).await?,
+   };
+
+   Ok(())
+}
+
+
 
 async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, Infallible> {
    log::error!("Cannot process the request due to: {:?}", error);
@@ -122,21 +145,18 @@ async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, In
 }
 
 pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infallible> {
-   // Heroku defines auto defines a port value
+   // Heroku auto defines a port value
    let teloxide_token = env::var("TELOXIDE_TOKEN").expect("TELOXIDE_TOKEN env variable missing");
    let port: u16 = env::var("PORT")
-      .expect("PORT env variable missing")
-      .parse()
-      .expect("PORT value to be integer");
+       .expect("PORT env variable missing")
+       .parse()
+       .expect("PORT value to be integer");
    // Heroku host example .: "heroku-ping-pong-bot.herokuapp.com"
    let host = env::var("HOST").expect("have HOST env variable");
    let path = format!("bot{}", teloxide_token);
    let url = format!("https://{}/{}", host, path);
 
-   bot.set_webhook(url)
-      .send()
-      .await
-      .expect("Cannot setup a webhook");
+   bot.set_webhook(url).send().await.expect("Cannot setup a webhook");
 
    let (tx, rx) = mpsc::unbounded_channel();
 
@@ -145,8 +165,8 @@ pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infa
       .and(warp::body::json())
       .map(move |json: serde_json::Value| {
          let try_parse = match serde_json::from_str(&json.to_string()) {
-               Ok(update) => Ok(update),
-               Err(error) => {
+            Ok(update) => Ok(update),
+            Err(error) => {
                   log::error!(
                      "Cannot parse an update.\nError: {:?}\nValue: {}\n\
                      This is a bug in teloxide, please open an issue here: \
@@ -155,11 +175,10 @@ pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infa
                      json
                   );
                   Err(error)
-               }
+            }
          };
          if let Ok(update) = try_parse {
-               tx.send(Ok(update))
-                  .expect("Cannot send an incoming update from the webhook")
+            tx.send(Ok(update)).expect("Cannot send an incoming update from the webhook")
          }
 
          StatusCode::OK
@@ -173,205 +192,35 @@ pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infa
    rx
 }
 
-async fn run() {
+#[tokio::main]
+async fn main() {
+   run().await;
+}
+
+/*async fn run() {
    teloxide::enable_logging!();
-   log::info!("Starting N5011 bot...");
+   log::info!("Starting admin_bot...");
 
    let bot = Bot::from_env();
 
-   // Логин к БД
-   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing") + " sslmode=require";
-   log::info!("{}", database_url);
+   let bot_name: String = panic!("Your bot's name here");
+   teloxide::commands_repl(bot, bot_name, action).await;
+}*/
 
-   let connector = TlsConnector::builder()
-   // .add_root_certificate(cert)
-   .build().unwrap();
-   let connector = MakeTlsConnector::new(connector);
+async fn run() {
+   teloxide::enable_logging!();
+   log::info!("Starting N5011_bot...");
 
-   // Откроем БД
-   log::info!("Here 1");
-   let (client, connection) =
-      tokio_postgres::connect(&database_url, connector).await
-         .expect("Cannot connect to database");
+   let bot = Bot::from_env();
 
-   log::info!("Here 2");
-   // The connection object performs the actual communication with the database,
-   // so spawn it off to run on its own.
-   tokio::spawn(async move {
-      if let Err(e) = connection.await {
-         log::info!("Database connection error: {}", e);
-      }
-   });
-
-   // Сохраним доступ к БД
-   match db::DB.set(client) {
-      Ok(_) => log::info!("Database connected"),
-      _ => log::info!("Something wrong with database"),
-   }
-
-   // Создадим таблицу в БД, если её ещё нет
-   db::check_database().await;
-
-   // teloxide::commands_repl_with_listener(bot.clone(), "cognito_bot", answer, webhook(bot).await).await;
-   Dispatcher::new(bot.clone())
-   .messages_handler(|rx: DispatcherHandlerRx<Message>| {
-      rx.for_each_concurrent(None, |message| async move {
-         handle_message(message).await.expect("Something wrong with the bot!");
-      })
-   })
-   .callback_queries_handler(|rx: DispatcherHandlerRx<CallbackQuery>| {
-      rx.for_each_concurrent(None, |cx| async move {
-         handle_callback(cx).await
-      })
-   })
-   .dispatch_with_listener(
-      webhook(bot).await,
-      LoggingErrorHandler::with_custom_text("An error from the update listener"),
+   let cloned_bot = bot.clone();
+   teloxide::commands_repl_with_listener(
+      bot,
+      |message| async move {
+         message.answer_str("pong").await?;
+         ResponseResult::<()>::Ok(())
+      },
+      webhook(cloned_bot).await,
    )
    .await;
-}
-
-/// Возвращает кнопки для администратора
-/* fn admin_markup() -> InlineKeyboardMarkup {
-   InlineKeyboardMarkup::default()
-   .append_row(vec![InlineKeyboardButton::callback(String::from("🗸 Одобрить"), String::from("+")),
-      InlineKeyboardButton::callback(String::from("🗴 Отклонить"), String::from("-")),
-   ])
-} */
-
-async fn handle_callback(_cx: UpdateWithCx<CallbackQuery>) {
-   /* let query = &cx.update;
-   let query_id = &query.id;
-
-   // Код пользователя
-   let user_id = query.from.id;
-
-   // Ссылка сообщение для будущей правки
-   let original_message = ChatOrInlineMessage::Chat {
-      chat_id: ChatId::Id(i64::from(user_id)),
-      message_id: query.message.as_ref().unwrap().id,
-   };
-
-   // Отложенное сообщение администратору чата
-   let mut msg_to_admin: Option<MsgToAdmin> = None;
-
-   // Сообщение для отправки обратно
-   let msg = match &query.data {
-      None => {
-         String::from("Error No data")
-      }
-      Some(data) => {
-         // Если в сообщении с кнопкой было процитированное сообщение, получим его
-         if let Some(message) = query.message.as_ref()
-         .and_then(|s| Message::reply_to_message(&s))
-         .and_then(|s| Message::text(&s)) {
-            // Код администратора по имени чата
-            let admin = db::user_id(data).await;
-
-            match admin {
-               Some(id) => {
-
-                  // Время задержки
-                  let delay = 0/* rand::thread_rng().gen_range(3, 723) */;
-
-                  // Приготовим для отправки сообщение администратору на модерацию
-                  msg_to_admin = Some(MsgToAdmin{
-                     id,
-                     message: String::from(message),
-                     delay,
-                  });
-
-                  // Отредактируем сообщение у пользователя
-                  let res = cx.bot
-                  .edit_message_text(original_message, format!("Сообщение через {} сек. (для маскировки онлайн-активности) будет направлено на рассмотрении администратору чата и после его одобрения оно появится в чате", delay))
-                  .send().
-                  await;
-
-                  match res {
-                     Ok(_) => String::from("Успешно"),
-                     Err(e) => format!("Ошибка  {}", e),
-                  }
-               },
-               None => String::from("Error No admin")
-            }
-         } else {
-            // Возможно это было сообщение от админа
-            match data.as_str() {
-               "+" => {
-                  // Отправим сообщение в чат
-                  if let Some(message) = query.message.as_ref()
-                  .and_then(|s| Message::text(&s)) {
-                     // Отредактируем сообщение у администратора, ошибку игнорируем
-                     let _= cx.bot
-                     .edit_message_text(original_message, format!("Одобрено:\n{}", message))
-                     .send()
-                     .await;
-
-                     // Получим имя чата по коду пользователя
-                     let chat_name = db::user_chat_name(user_id).await.unwrap_or_default();
-
-                     // Код чата
-                     let chat_id = ChatId::ChannelUsername(chat_name);
-                     
-                     // Отправляем сообщение
-                     let res = cx.bot
-                     .send_message(chat_id, message)
-                     .send()
-                     .await;
-
-                     match res {
-                        Ok(_) => {
-                           db::successful_sent(user_id).await;
-                           String::from("Одобрено")
-                        },
-                        Err(e) => {
-                           db::error_happened(user_id).await;
-                           format!("Ошибка {}", e)
-                        },
-                     }
-                  } else {String::from("Ошибка, нет сообщения")}
-               },
-               "-" => {
-                  // Отредактируем сообщение у администратора, ошибку игнорируем
-                  if let Some(message) = query.message.as_ref()
-                  .and_then(|s| Message::text(&s)) {
-                     let _= cx.bot
-                     .edit_message_text(original_message, format!("Отклонено:\n{}", message))
-                     .send()
-                     .await;
-                  }
-                  String::from("Отклонено")
-               },
-               _ => String::from("Слишком старое сообщение"),
-            }
-         }
-      }
-   };
-
-   // Отправляем ответ, который показывается во всплывающем окошке
-   match cx.bot.answer_callback_query(query_id)
-      .text(&msg)
-      .send()
-      .await {
-         Err(_) => log::info!("Error handle_message {}", &msg),
-         _ => (),
-   }
-
-   // Если приготовлено отложенное сообщение, надо отправить его
-   if let Some(msg) = msg_to_admin {
-      // Выжидаем паузу
-      // delay_for(Duration::from_secs(u64::from(msg.delay))).await;
-
-      // Отправляем сообщение админу
-      let res = cx.bot
-      .send_message(ChatId::Id(i64::from(msg.id)), msg.message)
-      .reply_markup(admin_markup())
-      .send()
-      .await;
-
-      // Фиксируем ошибку, если была, при этом не фиксируем успешную отправку, чтобы не обнулить счётчик отправок в чат
-      if res.is_err() {
-         db::error_happened(msg.id).await;
-      }
-   } */
 }

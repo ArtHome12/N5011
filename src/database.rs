@@ -11,6 +11,13 @@ use once_cell::sync::{OnceCell};
 use teloxide::{
    types::{InlineKeyboardMarkup, /* InlineKeyboardButton, */ },
 };
+// use std::time::
+
+// Data structure
+struct User {
+   descr: String,
+   // last_seen: 
+}
 
 // Клиент БД
 pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();

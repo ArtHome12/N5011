@@ -8,105 +8,102 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use once_cell::sync::OnceCell;
-use std::sync::{Mutex, Arc};
-use std::collections::{HashMap, };
-use serde_derive::{Serialize, Deserialize, };
-use std::fs;
-
 
 // Storage
-pub static DB: OnceCell<Arc<Mutex<Storage>>> = OnceCell::new();
+pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();
 
-// Data structure
-#[derive(Serialize, Deserialize)]
-pub struct User {
-   pub descr: String,
-   pub last_seen: i32,
+struct User {
+   // id: i32,
+   descr: String,
+   last_seen: i32,
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct Users {
-   announcement_delta: i32,
-   users: HashMap<String, User>,
-}
+// Announcement text for the user, if necessary
+pub async fn announcement(user_id: i32, time: i32, def_descr: &str) -> Option<String> {
 
-impl Users {
-   pub fn new(filename: &str) -> Self {
-      log::info!("Load1");
-      if let Ok(data) = fs::read_to_string(filename) {
-         log::info!("Load: {}", data);
-         toml::from_str(&data).unwrap()
-      } else {
-         Default::default()
-      }
-   }
-}
-
-impl Default for Users {
-   fn default() -> Self {
-      Self {
-         announcement_delta: 5, //60 * 60 * 24,
-         users: HashMap::new(),
-      }
-   }
-}
-
-pub struct Storage {
-   filename: String,
-   users: Users,
-}
-
-impl Storage {
-   // Load or create new data
-   pub fn new(filename: &str) -> Self {
-      Self {
-         filename: String::from(filename),
-         users: Users::new(filename),
-      }
-   }
-
-   // Save data
-   fn save(&self) {
-      match toml::to_string(&self.users) {
-         Ok(str_data) => {
-            log::info!("Save: {}", str_data);
-            if let Err(e) = fs::write(self.filename.as_str(), str_data) {
-               log::info!("Save file error: {}", e);
-            }
-         }
-         Err(e) => log::info!("Save toml error: {}", e),
-      }
-      log::info!("Save2");
-   }
-
-   // Announcement text for the user, if necessary
-   pub fn announcement(&mut self, user_id: i32, time: i32, def_descr: &str) -> Option<String> {
-      // TOML requirement
-      let user_id_str = user_id.to_string();
-
-      match self.users.users.get_mut(&user_id_str) {
-         Some(user) => {
-            // If enough time has passed
-            if time - user.last_seen > self.users.announcement_delta {
-               user.last_seen = time;
-               let descr = user.descr.clone();
-               self.save();
-               Some(descr)
-            } else {
-               None
-            }
-         }
-         None => {
-            // Remember a new user
-            let user = User {
-               descr: String::from(def_descr),
-               last_seen: time,
-            };
-
-            self.users.users.insert(user_id_str, user);
-            self.save();
+   match load_user(user_id).await {
+      Some(user) => {
+         // If enough time has passed
+         if time - user.last_seen > 30 {
+            update_user_time(user_id, time).await;
+            Some(user.descr)
+         } else {
             None
          }
       }
+      None => {
+         // Remember a new user
+         save_new_user(user_id, time, def_descr).await;
+         None
+      }
+   }
+}
+
+// Создаёт таблицы, если её ещё не существует
+pub async fn check_database() {
+   // Получаем клиента БД
+   let client = DB.get().unwrap();
+
+   // Выполняем запрос
+   let rows = client.query("SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='users'", &[]).await.unwrap();
+
+   // Если таблица не существует, создадим её
+   if rows.is_empty() {
+      let query = client.batch_execute("CREATE TABLE chats (
+         PRIMARY KEY (user_id),
+         user_id        INTEGER        NOT NULL,
+         descr          VARCHAR(100)   NOT NULL,
+         last_seen      TIMESTAMP      NOT NULL
+      );
+      
+      CREATE TABLE settings (announcement_delta INTEGER);
+      INSERT INTO settings (announcement_delta) VALUES (30);
+      ")
+      .await;
+
+      if let Err(e) = query {
+         log::info!("check_database create error: {}", e)
+      }
+   }
+}
+
+async fn load_user(id: i32) -> Option<User> {
+   let client = DB.get().unwrap();
+   let query = client.query_one("SELECT descr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
+
+   match query {
+      Ok(data) => {
+         Some(User{
+            // id,
+            descr: data.get(0),
+            last_seen: data.get(1),
+         })
+      }
+      Err(e) => {
+         log::info!("load_user error: {}, {}", id, e);
+         None
+      }
+   }
+}
+
+pub async fn update_user_time(id: i32, time: i32) {
+   let client = DB.get().unwrap();
+   let query = client.execute("UPDATE users SET last_seen = $1::INTEGER WHERE user_id = $2::INTEGER", &[&time, &id]).await;
+
+   match query {
+      Ok(1) => (),
+      Ok(n) => log::info!("update_user_time error: {}, {} - updated {} records", id, time, n),
+      Err(e) => log::info!("update_user_time error: {}, {} - {}", id, time, e),
+   }
+}
+
+pub async fn save_new_user(id: i32, time: i32, def_descr: &str) {
+   let client = DB.get().unwrap();
+   let query = client.execute("INSERT INTO users (user_id, descr, last_seen) VALUES ($1::INTEGER, $2::VARCHAR(100), $3::INTEGER)", &[&id, &def_descr, &time]).await;
+
+   match query {
+      Ok(1) => (),
+      Ok(n) => log::info!("update_user_time error: {}, {} - updated {} records", id, time, n),
+      Err(e) => log::info!("update_user_time error: {}, {} - {}", id, time, e),
    }
 }

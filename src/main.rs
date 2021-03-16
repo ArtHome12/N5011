@@ -14,7 +14,8 @@ use teloxide::{dispatching::update_listeners, };
 use tokio::sync::mpsc;
 use warp::Filter;
 use reqwest::StatusCode;
-use std::sync::{Mutex, Arc};
+use native_tls::{TlsConnector};
+use postgres_native_tls::MakeTlsConnector;
 
 mod database;
 use database::{self as db, };
@@ -210,12 +211,36 @@ async fn run() {
    teloxide::enable_logging!();
    log::info!("Starting N5011_bot...");
 
-   // Open storage
-   let storage = Arc::new(Mutex::new(db::Storage::new("~/users.toml")));
-   match db::DB.set(storage) {
-      Ok(_) => log::info!("Storage connected"),
-      _ => log::info!("Something wrong with storage"),
+   let database_url = env::var("DATABASE_URL").expect("DATABASE_URL env variable missing");
+   log::info!("{}", database_url);
+
+   let connector = TlsConnector::builder()
+   .danger_accept_invalid_certs(true)
+   .build()
+   .unwrap();
+   let connector = MakeTlsConnector::new(connector);
+
+   // Откроем БД
+   let (client, connection) =
+      tokio_postgres::connect(&database_url, connector).await
+         .expect("Cannot connect to database");
+
+   // The connection object performs the actual communication with the database,
+   // so spawn it off to run on its own.
+   tokio::spawn(async move {
+      if let Err(e) = connection.await {
+         log::info!("Database connection error: {}", e);
+      }
+   });
+
+   // Сохраним доступ к БД
+   match db::DB.set(client) {
+      Ok(_) => log::info!("Database connected"),
+      _ => log::info!("Something wrong with database"),
    }
+
+   // Создадим таблицу в БД, если её ещё нет
+   db::check_database().await;
 
    let bot = Bot::from_env();
 
@@ -259,18 +284,13 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
          } else {
             // Regular message
             if let Some(user) = cx.update.from() {
-               // Collect info about message
+               // Collect info about update
                let user_id = user.id;
                let def_descr = user.full_name();
                let time = cx.update.date;
                
-               // Access to storage
-               let storage = db::DB.get()
-               .and_then(|f| f.lock().ok())
-               .and_then(|ref mut f| f.announcement(user_id, time, &def_descr));
-
                // Make announcement if needs
-               match storage {
+               match db::announcement(user_id, time, &def_descr).await {
                   Some(announcement) => {
                      cx.reply_to(announcement)
                      .send()

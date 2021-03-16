@@ -19,7 +19,14 @@ use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 
+#[macro_use]
+extern crate frunk;
 
+use crate::states::Dialogue;
+use teloxide::prelude::*;
+
+
+mod states;
 mod database;
 use database::{self as db, };
 
@@ -156,11 +163,11 @@ async fn start_user(cx: &Cx) -> ResponseResult<()> {
    // Prepare menu
    let commands = 
    if is_admin {
-      vec![KeyboardButton::new("/Change_origin"),
+      vec![KeyboardButton::new("/origin"),
       KeyboardButton::new("/List"),
       ]
    } else {
-      vec![KeyboardButton::new("/Change_origin")]
+      vec![KeyboardButton::new("/origin")]
    };
 
    let markup = ReplyKeyboardMarkup::default()
@@ -302,28 +309,66 @@ async fn run() {
 
    let bot = Bot::from_env();
 
-   Dispatcher::new(bot.clone())
-   .messages_handler(|rx: DispatcherHandlerRx<Message>| {
+   /* Dispatcher::new(bot.clone())
+   .messages_handler(DialogueDispatcher::new(|cx| async move {
+      let res = handle_message(cx).await;
+      if let Err(e) = res {
+         log::info!("run error {}", e);
+         DialogueStage::Exit
+      } else {
+         res.unwrap()
+      }
+   })) */
+
+   /*.messages_handler(|rx: DispatcherHandlerRx<Message>| {
       rx.for_each_concurrent(None, |message| async move {
          handle_message(message).await.expect("Something wrong with the bot!");
       })
-   })
+   })*/
    /* .callback_queries_handler(|rx: DispatcherHandlerRx<CallbackQuery>| {
       rx.for_each_concurrent(None, |cx| async move {
          handle_callback(cx).await
       })
    }) */
-   .dispatch_with_listener(
+   /* .dispatch_with_listener(
       webhook(bot).await,
       LoggingErrorHandler::with_custom_text("An error from the update listener"),
+   )*/
+
+   teloxide::dialogues_repl_with_listener(
+      bot.clone(), 
+      |message, dialogue| async move {
+         handle_message(message, dialogue).await.expect("Something wrong with the bot!")
+      },
+      webhook(bot).await
    )
-   .await;
+  .await;
+
+   /*let handler = Arc::new(handler);
+
+   Dispatcher::new(bot)
+      .messages_handler(DialogueDispatcher::new(
+          move |DialogueWithCx { cx, dialogue }: DialogueWithCx<Message, D, Infallible>| {
+              let handler = Arc::clone(&handler);
+
+              async move {
+                  let dialogue = dialogue.expect("std::convert::Infallible");
+                  handler(cx, dialogue).await
+              }
+          },
+      ))
+      .dispatch_with_listener(
+         webhook(bot).await,
+          LoggingErrorHandler::with_custom_text("An error from the update listener"),
+      )
+      .await;*/
+
 }
 
-async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
+async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
 
    // Для различения, в личку или в группу пишут
-   let chat_id = cx.update.chat_id();
+   /*let chat_id = cx.update.chat_id();
 
    // Обрабатываем сообщение, только если оно пришло в личку
    if chat_id < 0 {
@@ -366,5 +411,6 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
             }
          }
       }
-   }
+   } */
+   exit()
 }

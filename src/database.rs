@@ -57,6 +57,8 @@ pub async fn check_database() {
 
    // Если таблица не существует, создадим её
    if rows.is_empty() {
+      log::info!("Create database");
+
       let query = client.batch_execute("CREATE TABLE users (
          PRIMARY KEY (user_id),
          user_id        INTEGER        NOT NULL,
@@ -72,6 +74,8 @@ pub async fn check_database() {
       if let Err(e) = query {
          log::info!("check_database create error: {}", e)
       }
+   } else {
+      log::info!("Database exists");
    }
 }
 
@@ -117,5 +121,12 @@ pub async fn save_new_user(id: i32, time: i32, def_descr: &str) {
       Ok(1) => (),
       Ok(n) => log::info!("update_user_time error: {}, {} - updated {} records", id, time, n),
       Err(e) => log::info!("update_user_time error: {}, {} - {}", id, time, e),
+   }
+}
+
+pub async fn user_descr(id: i32) -> String {
+   match load_user(id).await {
+      Some(user) => user.descr,
+      None => String::default(),
    }
 }

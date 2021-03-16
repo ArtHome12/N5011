@@ -52,9 +52,12 @@ enum Command {
       unit: UnitOfTime,
    },
    // List,
+   #[command(description = "список команд.")]
    Help,
+   #[command(description = "начать.")]
    Start,
-   ChangeOrigin {user_id: i32},
+   #[command(description = "Изменить ориджин (допинформацию).")]
+   Origin,
 }
 
 enum UnitOfTime {
@@ -172,8 +175,14 @@ async fn start_user(cx: &Cx) -> ResponseResult<()> {
    Ok(())
 }
 
-async fn change_origin(cx: &Cx, user_id: i32) -> ResponseResult<()> {
-   cx.answer(format!("receive {}", user_id)).send().await?;
+async fn origin(cx: &Cx) -> ResponseResult<()> {
+   if let Some(user) = cx.update.from() {
+      // Collect info about update
+      let descr = db::user_descr(user.id).await;
+      cx.answer(format!("Ваш текущий ориджин {}.\n Пожалуйста, введите строку вида 2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko или просто /, чтобы оставить текущую информацию без изменений", descr)).send().await?;
+   } else {
+      cx.answer(format!("origin no user error")).send().await?;
+   }
    Ok(())
 }
 
@@ -184,7 +193,7 @@ async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<(
       Command::Kick => kick_user(&cx).await?,
       Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
       Command::Mute { time, unit } => mute_user(&cx, calc_restrict_time(time, unit)).await?,
-      Command::ChangeOrigin {user_id} => change_origin(&cx, user_id).await?,
+      Command::Origin => origin(&cx).await?,
    };
 
    Ok(())

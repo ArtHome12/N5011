@@ -71,11 +71,7 @@ pub struct CommandState {
 }
 
 #[teloxide(subtransition)]
-async fn select_command(
-   state: CommandState,
-   cx: TransitionIn,
-   ans: String,
-) -> TransitionOut<Dialogue> {
+async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
    // Handle commands
    if ans == "Изменить ориджин" {
       // Collect info about update
@@ -107,12 +103,22 @@ pub struct OriginState {
 }
 
 #[teloxide(subtransition)]
-async fn origin(
-    state: OriginState,
-    cx: TransitionIn,
-    ans: String,
-) -> TransitionOut<Dialogue> {
-   let descr = format!("Ваш ориджин {} сохранён", ans);
-    cx.answer_str(descr).await?;
-    exit()
+async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
+   let descr = {if ans == "/" {
+      String::from("Ориджин не изменён")
+   } else {
+      // Save to database
+
+      format!("Ваш ориджин {} сохранён", ans)
+   }};
+
+   let markup = ReplyKeyboardMarkup::default()
+   .append_row(vec![KeyboardButton::new("В начало")])
+   .resize_keyboard(true);
+
+   cx.answer(descr)
+   .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
+   .send().
+   await?;
+   next(StartState)
 }

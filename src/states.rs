@@ -20,9 +20,8 @@ use crate::database as db;
 #[derive(Transition, From)]
 pub enum Dialogue {
    Start(StartState),
-   SelectCommand(SelectCommandState),
-   StartChangeOrigin(StartChangeOriginState),
-   ReceiveOrigin(ReceiveOriginState),
+   Command(CommandState),
+   Origin(OriginState),
 }
 
 impl Default for Dialogue {
@@ -63,17 +62,17 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send()
    .await?;
-   next(SelectCommandState { user_id, is_admin })
+   next(CommandState { user_id, is_admin })
 }
 
-pub struct SelectCommandState {
+pub struct CommandState {
    user_id: i32,
    is_admin: bool,
 }
 
 #[teloxide(subtransition)]
 async fn select_command(
-   state: SelectCommandState,
+   state: CommandState,
    cx: TransitionIn,
    ans: String,
 ) -> TransitionOut<Dialogue> {
@@ -81,7 +80,7 @@ async fn select_command(
    if ans == "Изменить ориджин" {
       // Collect info about update
       let descr = db::user_descr(state.user_id).await;
-      let descr = format!("Ваш текущий ориджин {}.\n Пожалуйста, введите строку вида 2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko или просто /, чтобы оставить текущую информацию без изменений", descr);
+      let descr = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko\n Для отказа нажмите /", descr);
 
       let markup = ReplyKeyboardMarkup::default()
       .append_row(vec![KeyboardButton::new("/")])
@@ -91,37 +90,29 @@ async fn select_command(
       .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
       .send().
       await?;
-      next(state)
-   } else {
-         cx.answer_str(format!("Неизвестная команда {}", ans)).await?;
 
-         // Stay in previous state
-         next(state)
+      next(OriginState { state })
+   } else {
+      cx.answer_str(format!("Неизвестная команда {}. Пожалуйста, выберите одну из команд внизу (если панель с кнопками скрыта, откройте её)", ans)).await?;
+
+      // Stay in previous state
+      next(state)
    }
 }
 
 
-pub struct StartChangeOriginState;
-
-#[teloxide(subtransition)]
-async fn start_origin(
-   _state: StartChangeOriginState,
-   cx: TransitionIn,
-   _ans: String,
-) -> TransitionOut<Dialogue> {
-   cx.answer_str("Введите новый ориджин").await?;
-   next(ReceiveOriginState)
+// #[derive(Generic)]
+pub struct OriginState {
+   state: CommandState,
 }
 
-// #[derive(Generic)]
-pub struct ReceiveOriginState;
-
 #[teloxide(subtransition)]
-async fn receive_origin(
-    state: ReceiveOriginState,
+async fn origin(
+    state: OriginState,
     cx: TransitionIn,
     ans: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer_str("Ваш ориджин сохранён").await?;
+   let descr = format!("Ваш ориджин {} сохранён", ans);
+    cx.answer_str(descr).await?;
     exit()
 }

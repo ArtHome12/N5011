@@ -62,8 +62,6 @@ enum Command {
    Help,
    #[command(description = "начать.")]
    Start,
-   #[command(description = "Изменить ориджин (допинформацию).")]
-   Origin,
 }
 
 enum UnitOfTime {
@@ -181,17 +179,6 @@ async fn start_user(cx: &Cx) -> ResponseResult<()> {
    Ok(())
 }
 
-async fn origin(cx: &Cx) -> ResponseResult<()> {
-   if let Some(user) = cx.update.from() {
-      // Collect info about update
-      let descr = db::user_descr(user.id).await;
-      cx.answer(format!("Ваш текущий ориджин {}.\n Пожалуйста, введите строку вида 2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko или просто /, чтобы оставить текущую информацию без изменений", descr)).send().await?;
-   } else {
-      cx.answer(format!("origin no user error")).send().await?;
-   }
-   Ok(())
-}
-
 async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<()> {
    match command {
       Command::Start => start_user(&cx).await?,
@@ -199,7 +186,6 @@ async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<(
       Command::Kick => kick_user(&cx).await?,
       Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
       Command::Mute { time, unit } => mute_user(&cx, calc_restrict_time(time, unit)).await?,
-      Command::Origin => origin(&cx).await?,
    };
 
    Ok(())

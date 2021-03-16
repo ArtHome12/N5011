@@ -53,7 +53,7 @@ pub async fn check_database() {
          PRIMARY KEY (user_id),
          user_id        INTEGER        NOT NULL,
          descr          VARCHAR(100)   NOT NULL,
-         last_seen      TIMESTAMP      NOT NULL
+         last_seen      INTEGER        NOT NULL
       );
       
       CREATE TABLE settings (announcement_delta INTEGER);
@@ -69,15 +69,19 @@ pub async fn check_database() {
 
 async fn load_user(id: i32) -> Option<User> {
    let client = DB.get().unwrap();
-   let query = client.query_one("SELECT descr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
+   let query = client.query("SELECT descr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
 
    match query {
       Ok(data) => {
-         Some(User{
-            // id,
-            descr: data.get(0),
-            last_seen: data.get(1),
-         })
+         match data.len() {
+            1 => Some(User{
+               // id,
+               descr: data[0].get(0),
+               last_seen: data[0].get(1),
+            }),
+            _ => None,
+         }
+         
       }
       Err(e) => {
          log::info!("load_user error: {}, {}", id, e);

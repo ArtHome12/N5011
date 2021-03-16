@@ -49,7 +49,7 @@ pub async fn check_database() {
 
    // Если таблица не существует, создадим её
    if rows.is_empty() {
-      let query = client.batch_execute("CREATE TABLE chats (
+      let query = client.batch_execute("CREATE TABLE users (
          PRIMARY KEY (user_id),
          user_id        INTEGER        NOT NULL,
          descr          VARCHAR(100)   NOT NULL,

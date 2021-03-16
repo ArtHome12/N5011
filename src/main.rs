@@ -368,14 +368,23 @@ async fn run() {
 async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
 
    // Для различения, в личку или в группу пишут
-   /*let chat_id = cx.update.chat_id();
+   let chat_id = cx.update.chat_id();
 
    // Обрабатываем сообщение, только если оно пришло в личку
    if chat_id < 0 {
-      return Ok(cx.update);
+      return next(dialogue);
    }
 
-   match cx.update.text() {
+   match cx.update.text_owned() {
+      None => {
+          cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
+          next(dialogue)
+      }
+      Some(ans) => dialogue.react(cx, ans).await,
+   }
+
+
+   /*match cx.update.text() {
       None => cx.answer_str("Текстовое сообщение, пожалуйста!").await,
       Some(text) => {
          // Попробуем получить команду
@@ -393,7 +402,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
                let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
                let def_descr = user.full_name() + &def_descr;
                let time = cx.update.date;
-               
+      
                // Make announcement if needs
                match db::announcement(user_id, time, &def_descr).await {
                   Some(announcement) => {
@@ -412,5 +421,4 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
          }
       }
    } */
-   exit()
 }

@@ -286,7 +286,8 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
             if let Some(user) = cx.update.from() {
                // Collect info about update
                let user_id = user.id;
-               let def_descr = user.full_name();
+               let def_descr = user.username.clone().unwrap_or_default();
+               let def_descr = user.full_name() + &def_descr;
                let time = cx.update.date;
                
                // Make announcement if needs

@@ -13,8 +13,11 @@ use teloxide::{prelude::*, types::ChatPermissions, utils::command::BotCommand};
 use teloxide::{dispatching::update_listeners, };
 use tokio::sync::mpsc;
 use warp::Filter;
-use chrono::naive::NaiveDateTime;
 use reqwest::StatusCode;
+use std::sync::{Mutex, Arc};
+
+mod database;
+use database::{self as db, };
 
 // Derive BotCommand to parse text with a command into this enumeration.
 //
@@ -207,6 +210,13 @@ async fn run() {
    teloxide::enable_logging!();
    log::info!("Starting N5011_bot...");
 
+   // Open storage
+   let storage = Arc::new(Mutex::new(db::Storage::new("./users.toml")));
+   match db::DB.set(storage) {
+      Ok(_) => log::info!("Storage connected"),
+      _ => log::info!("Something wrong with storage"),
+   }
+
    let bot = Bot::from_env();
 
    Dispatcher::new(bot.clone())
@@ -225,7 +235,6 @@ async fn run() {
       LoggingErrorHandler::with_custom_text("An error from the update listener"),
    )
    .await;
-
 }
 
 async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
@@ -248,11 +257,33 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
             .await
             .map(|_| Ok(cx_update))?
          } else {
-            let d = NaiveDateTime::from_timestamp(cx.update.date as i64, 0);
-            cx.reply_to(format!("{} Выберите чат для отправки", d))
-            // .reply_markup(db::chats_markup().await)
-            .send()
-            .await
+            // Regular message
+            if let Some(user) = cx.update.from() {
+               // Collect info about message
+               let user_id = user.id;
+               let def_descr = user.full_name();
+               let time = cx.update.date;
+               
+               // Access to storage
+               let storage = db::DB.get()
+               .and_then(|f| f.lock().ok())
+               .and_then(|ref mut f| f.announcement(user_id, time, &def_descr));
+
+               // Make announcement if needs
+               match storage {
+                  Some(announcement) => {
+                     cx.reply_to(announcement)
+                     .send()
+                     .await
+                  }
+
+                  // No needs announce
+                  _ => Ok(cx.update),
+               }
+            } else {
+               log::info!("Error no user in cx.update.from()");
+               Ok(cx.update)
+            }
          }
       }
    }

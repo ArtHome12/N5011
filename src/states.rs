@@ -60,7 +60,10 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    .append_row(commands)
    .resize_keyboard(true);
 
-   cx.answer("Добро пожаловать. Выберите команду на кнопке внизу")
+   let descr = String::from(if state.restarted { "Извините, бот был перезапущен\n" } else {""});
+   let descr = descr + "Добро пожаловать. Выберите команду на кнопке внизу";
+
+   cx.answer(descr)
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send()
    .await?;

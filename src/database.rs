@@ -67,13 +67,14 @@ impl Storage {
 
    // Save data
    fn save(&self) {
-      log::info!("Save1");
       match toml::to_string(&self.users) {
          Ok(str_data) => {
             log::info!("Save: {}", str_data);
-            fs::write(self.filename.as_str(), str_data).unwrap();
+            if let Err(e) = fs::write(self.filename.as_str(), str_data) {
+               log::info!("Save file error: {}", e);
+            }
          }
-         Err(e) => log::info!("Save error: {}", e),
+         Err(e) => log::info!("Save toml error: {}", e),
       }
       log::info!("Save2");
    }

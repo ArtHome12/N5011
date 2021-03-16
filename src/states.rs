@@ -53,11 +53,11 @@ async fn start(_state: StartState, cx: TransitionIn, _ans: String,) -> Transitio
    .append_row(commands)
    .resize_keyboard(true);
 
-   cx.reply_to("Добро пожаловать. Выберите команду на кнопке внизу")
+   cx.answer("Добро пожаловать. Выберите команду на кнопке внизу")
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send()
    .await?;
-   exit()
+   next(SelectCommandState)
 }
 
 pub struct SelectCommandState;

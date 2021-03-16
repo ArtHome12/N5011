@@ -32,7 +32,7 @@ pub async fn announcement(user_id: i32, time: i32, def_descr: &str) -> Option<St
    match load_user(user_id).await {
       Some(user) => {
          // If enough time has passed and origin was changed
-         if time - user.last_seen > 30 && user.descr != def_descr {
+         if time - user.last_seen > 3600 && user.descr != def_descr {
             update_user_time(user_id, time).await;
             Some(user.descr)
          } else {

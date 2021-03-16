@@ -10,7 +10,6 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use derive_more::From;
 use teloxide_macros::{Transition, teloxide, };
 use teloxide::{prelude::*,
-   utils::command::BotCommand, dispatching::update_listeners,
    types::{ReplyMarkup, KeyboardButton, ReplyKeyboardMarkup, },
 };
 
@@ -39,7 +38,7 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    // Extract user id
    let user = cx.update.from();
    if user.is_none() {
-      cx.answer_str("Error, no user");
+      cx.answer_str("Error, no user").await?;
       return next(StartState { restarted: false });
    }
 
@@ -60,7 +59,7 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    .append_row(commands)
    .resize_keyboard(true);
 
-   let descr = String::from(if state.restarted { "Извините, бот был перезапущен\n" } else {""});
+   let descr = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
    let descr = descr + "Добро пожаловать. Выберите команду на кнопке внизу";
 
    cx.answer(descr)

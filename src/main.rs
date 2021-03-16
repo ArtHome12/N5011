@@ -7,19 +7,14 @@ http://www.gnu.org/licenses/gpl-3.0.html
 Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
-use std::str::FromStr;
 use std::{convert::Infallible, env, net::SocketAddr};
-use teloxide::{prelude::*, 
-   utils::command::BotCommand, dispatching::update_listeners, 
-   types::{ReplyMarkup, KeyboardButton, ReplyKeyboardMarkup, },
-};
+use teloxide::{prelude::*, dispatching::update_listeners, };
 use tokio::sync::mpsc;
 use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 
-#[macro_use]
 extern crate frunk;
 
 use crate::states::Dialogue;
@@ -28,169 +23,6 @@ use crate::states::Dialogue;
 mod states;
 mod database;
 use database::{self as db, };
-
-// Derive BotCommand to parse text with a command into this enumeration.
-//
-//  1. rename = "lowercase" turns all the commands into lowercase letters.
-//  2. `description = "..."` specifies a text before all the commands.
-//
-// That is, you can just call Command::descriptions() to get a description of
-// your commands in this format:
-// %GENERAL-DESCRIPTION%
-// %PREFIX%%COMMAND% - %DESCRIPTION%
-#[derive(BotCommand)]
-#[command(
-   rename = "lowercase",
-   description = "Use commands in format /%command% %num% %unit%",
-   parse_with = "split"
-)]
-enum Command {
-   #[command(description = "kick user from chat.")]
-   Kick,
-   #[command(description = "ban user in chat.")]
-   Ban {
-      time: u32,
-      unit: UnitOfTime,
-   },
-   #[command(description = "mute user in chat.")]
-   Mute {
-      time: u32,
-      unit: UnitOfTime,
-   },
-   // List,
-   #[command(description = "список команд.")]
-   Help,
-   #[command(description = "начать.")]
-   Start,
-}
-
-enum UnitOfTime {
-   Seconds,
-   Minutes,
-   Hours,
-}
-
-impl FromStr for UnitOfTime {
-   type Err = &'static str;
-   fn from_str(s: &str) -> Result<Self, <Self as FromStr>::Err> {
-      match s {
-         "h" | "hours" => Ok(UnitOfTime::Hours),
-         "m" | "minutes" => Ok(UnitOfTime::Minutes),
-         "s" | "seconds" => Ok(UnitOfTime::Seconds),
-         _ => Err("Allowed units: h, m, s"),
-      }
-   }
-}
-
-// Calculates time of user restriction.
-fn calc_restrict_time(time: u32, unit: UnitOfTime) -> u32 {
-   match unit {
-      UnitOfTime::Hours => time * 3600,
-      UnitOfTime::Minutes => time * 60,
-      UnitOfTime::Seconds => time,
-   }
-}
-
-type Cx = UpdateWithCx<Message>;
-
-// Mute a user with a replied message.
-async fn mute_user(cx: &Cx, _time: u32) -> ResponseResult<()> {
-   /* match cx.update.reply_to_message() {
-      Some(msg1) => {
-         cx.bot
-               .restrict_chat_member(
-                  cx.update.chat_id(),
-                  msg1.from().expect("Must be MessageKind::Common").id,
-                  ChatPermissions::default(),
-               )
-               .until_date(cx.update.date + time as i32)
-               .send()
-               .await?;
-      }
-      None => {
-         cx.reply_to("Use this command in reply to another message").send().await?;
-      }
-   } */
-   cx.reply_to("Потом доделаем").send().await?;
-   Ok(())
-}
-
-// Kick a user with a replied message.
-async fn kick_user(cx: &Cx) -> ResponseResult<()> {
-   /* match cx.update.reply_to_message() {
-      Some(mes) => {
-         // bot.unban_chat_member can also kicks a user from a group chat.
-         cx.bot.unban_chat_member(cx.update.chat_id(), mes.from().unwrap().id).send().await?;
-      }
-      None => {
-         cx.reply_to("Use this command in reply to another message").send().await?;
-      }
-   } */
-   cx.reply_to("Потом доделаем").send().await?;
-   Ok(())
-}
-
-// Ban a user with replied message.
-async fn ban_user(cx: &Cx, _time: u32) -> ResponseResult<()> {
-   /* match cx.update.reply_to_message() {
-      Some(message) => {
-         cx.bot
-               .kick_chat_member(
-                  cx.update.chat_id(),
-                  message.from().expect("Must be MessageKind::Common").id,
-               )
-               .until_date(cx.update.date + time as i32)
-               .send()
-               .await?;
-      }
-      None => {
-         cx.reply_to("Use this command in a reply to another message!").send().await?;
-      }
-   } */
-   cx.reply_to("Потом доделаем").send().await?;
-   Ok(())
-}
-
-// Handle start
-async fn start_user(cx: &Cx) -> ResponseResult<()> {
-   // For admin and regular users there is different interface
-   let user = cx.update.from();
-   let is_admin = if user.is_some() {db::is_admin(user.unwrap().id)} else {false};
-
-   // Prepare menu
-   let commands = 
-   if is_admin {
-      vec![KeyboardButton::new("/origin"),
-      KeyboardButton::new("/List"),
-      ]
-   } else {
-      vec![KeyboardButton::new("/origin")]
-   };
-
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(commands)
-   .resize_keyboard(true);
-
-   cx.reply_to("Добро пожаловать, выберите команду на кнопках внизу")
-   .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
-   .send()
-   .await?;
-   
-   Ok(())
-}
-
-async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<()> {
-   match command {
-      Command::Start => start_user(&cx).await?,
-      Command::Help => cx.answer(Command::descriptions()).send().await.map(|_| ())?,
-      Command::Kick => kick_user(&cx).await?,
-      Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
-      Command::Mute { time, unit } => mute_user(&cx, calc_restrict_time(time, unit)).await?,
-   };
-
-   Ok(())
-}
-
 
 
 async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, Infallible> {
@@ -352,58 +184,42 @@ async fn run() {
 
 async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
 
-   // Для различения, в личку или в группу пишут
+   // Collect information and guaranteed to save the user in the database
+   let announcement = if let Some(user) = cx.update.from() {
+      // Collect info about update
+      let user_id = user.id;
+      let def_descr = user.username.clone().unwrap_or_default();
+      let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
+      let def_descr = user.full_name() + &def_descr;
+      let time = cx.update.date;
+
+      // Make announcement if needs
+      db::announcement(user_id, time, &def_descr).await
+   } else {
+      log::info!("Error no user in cx.update.from()");
+      None
+   };
+
+   // Negative for chats, positive personal
    let chat_id = cx.update.chat_id();
 
-   // Обрабатываем сообщение, только если оно пришло в личку
-   if chat_id < 0 {
-      return next(dialogue);
-   }
-
-   match cx.update.text_owned() {
-      None => {
-          cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
-          next(dialogue)
-      }
-      Some(ans) => dialogue.react(cx, ans).await,
-   }
-
-
-   /*match cx.update.text() {
-      None => cx.answer_str("Текстовое сообщение, пожалуйста!").await,
-      Some(text) => {
-         // Попробуем получить команду
-         if let Ok(command) = Command::parse(text, "n5011_bot") {
-            let cx_update = cx.update.clone();
-            action(cx, command)
-            .await
-            .map(|_| Ok(cx_update))?
-         } else {
-            // Regular message
-            if let Some(user) = cx.update.from() {
-               // Collect info about update
-               let user_id = user.id;
-               let def_descr = user.username.clone().unwrap_or_default();
-               let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
-               let def_descr = user.full_name() + &def_descr;
-               let time = cx.update.date;
-      
-               // Make announcement if needs
-               match db::announcement(user_id, time, &def_descr).await {
-                  Some(announcement) => {
-                     cx.reply_to(announcement)
-                     .send()
-                     .await
-                  }
-
-                  // No needs announce
-                  _ => Ok(cx.update),
-               }
-            } else {
-               log::info!("Error no user in cx.update.from()");
-               Ok(cx.update)
-            }
+   if chat_id > 0 {
+      // Private messages with FSM
+      match cx.update.text_owned() {
+         None => {
+            cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
+            next(dialogue)
          }
+         Some(ans) => dialogue.react(cx, ans).await,
       }
-   } */
+   } else {
+      // Make announcement in chat if needs
+      if let Some(announcement) = announcement {
+         cx.reply_to(announcement)
+         .send()
+         .await?;
+      }
+
+      next(dialogue)
+   }
 }

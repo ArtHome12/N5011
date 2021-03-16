@@ -108,8 +108,9 @@ async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> Transitio
       String::from("Ориджин не изменён")
    } else {
       // Save to database
+      db::update_user_descr(state.state.user_id, &ans).await;
 
-      format!("Ваш ориджин {} сохранён", ans)
+      format!("Ваш новый ориджин {} сохранён", ans)
    }};
 
    let markup = ReplyKeyboardMarkup::default()

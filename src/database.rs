@@ -65,7 +65,7 @@ pub async fn check_database() {
          descr          VARCHAR(100)   NOT NULL,
          last_seen      INTEGER        NOT NULL
       );
-      
+
       CREATE TABLE settings (announcement_delta INTEGER);
       INSERT INTO settings (announcement_delta) VALUES (30);
       ")
@@ -93,7 +93,7 @@ async fn load_user(id: i32) -> Option<User> {
             }),
             _ => None,
          }
-         
+
       }
       Err(e) => {
          log::info!("load_user error: {}, {}", id, e);
@@ -130,3 +130,15 @@ pub async fn user_descr(id: i32) -> String {
       None => String::default(),
    }
 }
+
+pub async fn update_user_descr(id: i32, descr: &str) {
+   let client = DB.get().unwrap();
+   let query = client.execute("UPDATE users SET descr = $1::VARCHAR(100) WHERE user_id = $2::INTEGER", &[&descr, &id]).await;
+
+   match query {
+      Ok(1) => (),
+      Ok(n) => log::info!("update_user_descr error: {}, {} - updated {} records", id, descr, n),
+      Err(e) => log::info!("update_user_descr error: {}, {} - {}", id, descr, e),
+   }
+}
+

@@ -44,7 +44,7 @@ impl Default for Users {
    fn default() -> Self {
       Self {
          announcement_delta: 60 * 60 * 24,
-         ..Default::default()
+         users: HashMap::new(),
       }
    }
 }

@@ -336,7 +336,7 @@ async fn run() {
    )*/
 
    teloxide::dialogues_repl_with_listener(
-      bot.clone(), 
+      bot.clone(),
       |message, dialogue| async move {
          handle_message(message, dialogue).await.expect("Something wrong with the bot!")
       },

@@ -14,26 +14,39 @@ use teloxide_macros::teloxide;
 
 #[derive(Transition, From)]
 pub enum Dialogue {
+   Start(StartState),
    StartChangeOrigin(StartChangeOriginState),
    ReceiveOrigin(ReceiveOriginState),
 }
 
 impl Default for Dialogue {
    fn default() -> Self {
-       Self::StartChangeOrigin(StartChangeOriginState)
+       Self::Start(StartState)
    }
+}
+
+pub struct StartState;
+
+#[teloxide(subtransition)]
+async fn start(
+    _state: StartState,
+    cx: TransitionIn,
+    _ans: String,
+) -> TransitionOut<Dialogue> {
+    cx.answer_str("Добро пожаловать. Выберите команду на кнопке внизу").await?;
+    exit()
 }
 
 pub struct StartChangeOriginState;
 
 #[teloxide(subtransition)]
-async fn start(
-    _state: StartChangeOriginState,
-    cx: TransitionIn,
-    _ans: String,
+async fn start_origin(
+   _state: StartChangeOriginState,
+   cx: TransitionIn,
+   _ans: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer_str("Let's start! What's your full name?").await?;
-    next(ReceiveOriginState)
+   cx.answer_str("Введите новый ориджин").await?;
+   next(ReceiveOriginState)
 }
 
 // #[derive(Generic)]
@@ -45,6 +58,6 @@ async fn receive_origin(
     cx: TransitionIn,
     ans: String,
 ) -> TransitionOut<Dialogue> {
-    cx.answer_str("How old are you?").await?;
+    cx.answer_str("Ваш ориджин сохранён").await?;
     exit()
 }

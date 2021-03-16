@@ -23,7 +23,6 @@ use postgres_native_tls::MakeTlsConnector;
 extern crate frunk;
 
 use crate::states::Dialogue;
-use teloxide::prelude::*;
 
 
 mod states;

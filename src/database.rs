@@ -32,7 +32,9 @@ pub struct Users {
 
 impl Users {
    pub fn new(filename: &str) -> Self {
+      log::info!("Load1");
       if let Ok(data) = fs::read_to_string(filename) {
+         log::info!("Load: {}", data);
          toml::from_str(&data).unwrap()
       } else {
          Default::default()

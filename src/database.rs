@@ -66,7 +66,7 @@ impl Storage {
    // Save data
    fn save(&self) {
       if let Ok(str_data) = toml::to_string(&self.users) {
-         let _ = fs::write(self.filename.as_str(), str_data);
+         fs::write(self.filename.as_str(), str_data).unwrap();
       }
    }
 

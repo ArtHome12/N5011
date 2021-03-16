@@ -211,7 +211,7 @@ async fn run() {
    log::info!("Starting N5011_bot...");
 
    // Open storage
-   let storage = Arc::new(Mutex::new(db::Storage::new("./users.toml")));
+   let storage = Arc::new(Mutex::new(db::Storage::new("~/users.toml")));
    match db::DB.set(storage) {
       Ok(_) => log::info!("Storage connected"),
       _ => log::info!("Something wrong with storage"),

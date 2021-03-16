@@ -13,7 +13,7 @@ use teloxide::{prelude::*, types::ChatPermissions, utils::command::BotCommand};
 use teloxide::{dispatching::update_listeners, };
 use tokio::sync::mpsc;
 use warp::Filter;
-
+use chrono::naive::NaiveDateTime;
 use reqwest::StatusCode;
 
 // Derive BotCommand to parse text with a command into this enumeration.
@@ -203,31 +203,11 @@ async fn main() {
    run().await;
 }
 
-/*async fn run() {
-   teloxide::enable_logging!();
-   log::info!("Starting admin_bot...");
-
-   let bot = Bot::from_env();
-
-   let bot_name: String = panic!("Your bot's name here");
-   teloxide::commands_repl(bot, bot_name, action).await;
-}*/
-
 async fn run() {
    teloxide::enable_logging!();
    log::info!("Starting N5011_bot...");
 
    let bot = Bot::from_env();
-
-  /*  let cloned_bot = bot.clone();
-   let bot_name= "N5011_bot";
-   teloxide::commands_repl_with_listener(
-      bot,
-      bot_name,
-      action,
-      webhook(cloned_bot).await,
-   )
-   .await; */
 
    Dispatcher::new(bot.clone())
    .messages_handler(|rx: DispatcherHandlerRx<Message>| {
@@ -268,7 +248,8 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
             .await
             .map(|_| Ok(cx_update))?
          } else {
-            cx.reply_to("Выберите чат для отправки")
+            let d = NaiveDateTime::from_timestamp(cx.update.date as i64, 0);
+            cx.reply_to(format!("{} Выберите чат для отправки", d))
             // .reply_markup(db::chats_markup().await)
             .send()
             .await

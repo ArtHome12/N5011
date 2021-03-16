@@ -27,7 +27,7 @@ pub struct User {
 #[derive(Serialize, Deserialize)]
 pub struct Users {
    announcement_delta: i32,
-   users: HashMap<i32, User>,
+   users: HashMap<String, User>,
 }
 
 impl Users {
@@ -80,7 +80,10 @@ impl Storage {
 
    // Announcement text for the user, if necessary
    pub fn announcement(&mut self, user_id: i32, time: i32, def_descr: &str) -> Option<String> {
-      match self.users.users.get_mut(&user_id) {
+      // TOML requirement
+      let user_id_str = user_id.to_string();
+
+      match self.users.users.get_mut(&user_id_str) {
          Some(user) => {
             // If enough time has passed
             if time - user.last_seen > self.users.announcement_delta {
@@ -99,7 +102,7 @@ impl Storage {
                last_seen: time,
             };
 
-            self.users.users.insert(user_id, user);
+            self.users.users.insert(user_id_str, user);
             self.save();
             None
          }

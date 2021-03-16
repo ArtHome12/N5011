@@ -50,7 +50,7 @@ pub async fn announcement(user_id: i32, time: i32, def_descr: &str) -> Option<St
 // Создаёт таблицы, если её ещё не существует
 pub async fn check_database() {
    // Получаем клиента БД
-   let client = DB.get().unwrap();
+   /* let client = DB.get().unwrap();
 
    // Выполняем запрос
    let rows = client.query("SELECT table_name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='users'", &[]).await.unwrap();
@@ -72,7 +72,7 @@ pub async fn check_database() {
       if let Err(e) = query {
          log::info!("check_database create error: {}", e)
       }
-   }
+   } */
 }
 
 async fn load_user(id: i32) -> Option<User> {

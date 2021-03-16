@@ -54,6 +54,7 @@ enum Command {
    // List,
    Help,
    Start,
+   ChangeOrigin {user_id: i32},
 }
 
 enum UnitOfTime {
@@ -171,6 +172,11 @@ async fn start_user(cx: &Cx) -> ResponseResult<()> {
    Ok(())
 }
 
+async fn change_origin(cx: &Cx, user_id: i32) -> ResponseResult<()> {
+   cx.answer(format!("receive {}", user_id)).send().await?;
+   Ok(())
+}
+
 async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<()> {
    match command {
       Command::Start => start_user(&cx).await?,
@@ -178,6 +184,7 @@ async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<(
       Command::Kick => kick_user(&cx).await?,
       Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
       Command::Mute { time, unit } => mute_user(&cx, calc_restrict_time(time, unit)).await?,
+      Command::ChangeOrigin {user_id} => change_origin(&cx, user_id).await?,
    };
 
    Ok(())

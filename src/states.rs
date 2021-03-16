@@ -26,11 +26,13 @@ pub enum Dialogue {
 
 impl Default for Dialogue {
    fn default() -> Self {
-       Self::Start(StartState)
+       Self::Start(StartState { restarted: true })
    }
 }
 
-pub struct StartState;
+pub struct StartState {
+   restarted: bool,
+}
 
 #[teloxide(subtransition)]
 async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> TransitionOut<Dialogue> {
@@ -38,7 +40,7 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    let user = cx.update.from();
    if user.is_none() {
       cx.answer_str("Error, no user");
-      return next(state);
+      return next(StartState { restarted: false });
    }
 
    // For admin and regular users there is different interface
@@ -121,5 +123,5 @@ async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> Transitio
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send().
    await?;
-   next(StartState)
+   next(StartState { restarted: false })
 }

@@ -9,13 +9,21 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 
 use once_cell::sync::OnceCell;
 
-// Storage
+// Database
 pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();
+
+// Admin ID
+pub static ADMIN_1: OnceCell<i32> = OnceCell::new();
+pub static ADMIN_2: OnceCell<i32> = OnceCell::new();
 
 struct User {
    // id: i32,
    descr: String,
    last_seen: i32,
+}
+
+pub fn is_admin(user_id: i32) -> bool {
+   ADMIN_1.get().unwrap() == &user_id || ADMIN_2.get().unwrap() == &user_id
 }
 
 // Announcement text for the user, if necessary

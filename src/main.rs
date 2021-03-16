@@ -9,13 +9,16 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 
 use std::str::FromStr;
 use std::{convert::Infallible, env, net::SocketAddr};
-use teloxide::{prelude::*, types::ChatPermissions, utils::command::BotCommand};
-use teloxide::{dispatching::update_listeners, };
+use teloxide::{prelude::*, 
+   utils::command::BotCommand, dispatching::update_listeners, 
+   types::{ReplyMarkup, KeyboardButton, ReplyKeyboardMarkup, },
+};
 use tokio::sync::mpsc;
 use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
+
 
 mod database;
 use database::{self as db, };
@@ -50,6 +53,7 @@ enum Command {
    },
    // List,
    Help,
+   Start,
 }
 
 enum UnitOfTime {
@@ -82,8 +86,8 @@ fn calc_restrict_time(time: u32, unit: UnitOfTime) -> u32 {
 type Cx = UpdateWithCx<Message>;
 
 // Mute a user with a replied message.
-async fn mute_user(cx: &Cx, time: u32) -> ResponseResult<()> {
-   match cx.update.reply_to_message() {
+async fn mute_user(cx: &Cx, _time: u32) -> ResponseResult<()> {
+   /* match cx.update.reply_to_message() {
       Some(msg1) => {
          cx.bot
                .restrict_chat_member(
@@ -98,13 +102,14 @@ async fn mute_user(cx: &Cx, time: u32) -> ResponseResult<()> {
       None => {
          cx.reply_to("Use this command in reply to another message").send().await?;
       }
-   }
+   } */
+   cx.reply_to("Потом доделаем").send().await?;
    Ok(())
 }
 
 // Kick a user with a replied message.
 async fn kick_user(cx: &Cx) -> ResponseResult<()> {
-   match cx.update.reply_to_message() {
+   /* match cx.update.reply_to_message() {
       Some(mes) => {
          // bot.unban_chat_member can also kicks a user from a group chat.
          cx.bot.unban_chat_member(cx.update.chat_id(), mes.from().unwrap().id).send().await?;
@@ -112,13 +117,14 @@ async fn kick_user(cx: &Cx) -> ResponseResult<()> {
       None => {
          cx.reply_to("Use this command in reply to another message").send().await?;
       }
-   }
+   } */
+   cx.reply_to("Потом доделаем").send().await?;
    Ok(())
 }
 
 // Ban a user with replied message.
-async fn ban_user(cx: &Cx, time: u32) -> ResponseResult<()> {
-   match cx.update.reply_to_message() {
+async fn ban_user(cx: &Cx, _time: u32) -> ResponseResult<()> {
+   /* match cx.update.reply_to_message() {
       Some(message) => {
          cx.bot
                .kick_chat_member(
@@ -132,12 +138,42 @@ async fn ban_user(cx: &Cx, time: u32) -> ResponseResult<()> {
       None => {
          cx.reply_to("Use this command in a reply to another message!").send().await?;
       }
-   }
+   } */
+   cx.reply_to("Потом доделаем").send().await?;
+   Ok(())
+}
+
+// Handle start
+async fn start_user(cx: &Cx) -> ResponseResult<()> {
+   // For admin and regular users there is different interface
+   let user = cx.update.from();
+   let is_admin = if user.is_some() {db::is_admin(user.unwrap().id)} else {false};
+
+   // Prepare menu
+   let commands = 
+   if is_admin {
+      vec![KeyboardButton::new("/Change_origin"),
+      KeyboardButton::new("/List"),
+      ]
+   } else {
+      vec![KeyboardButton::new("/Change_origin")]
+   };
+
+   let markup = ReplyKeyboardMarkup::default()
+   .append_row(commands)
+   .resize_keyboard(true);
+
+   cx.reply_to("Добро пожаловать, выберите команду на кнопках внизу")
+   .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
+   .send()
+   .await?;
+   
    Ok(())
 }
 
 async fn action(cx: UpdateWithCx<Message>, command: Command) -> ResponseResult<()> {
    match command {
+      Command::Start => start_user(&cx).await?,
       Command::Help => cx.answer(Command::descriptions()).send().await.map(|_| ())?,
       Command::Kick => kick_user(&cx).await?,
       Command::Ban { time, unit } => ban_user(&cx, calc_restrict_time(time, unit)).await?,
@@ -242,6 +278,12 @@ async fn run() {
    // Создадим таблицу в БД, если её ещё нет
    db::check_database().await;
 
+   // Сохраним коды админов
+   let admin: i32 = env::var("ADMIN_ID1").expect("ADMIN_ID1 env variable missing").parse().unwrap_or_default();
+   db::ADMIN_1.set(admin).expect("ADMIN_ID1 set fail");
+   let admin:i32 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
+   db::ADMIN_2.set(admin).expect("ADMIN_ID2 set fail");
+
    let bot = Bot::from_env();
 
    Dispatcher::new(bot.clone())
@@ -287,6 +329,7 @@ async fn handle_message(cx: UpdateWithCx<Message>) -> ResponseResult<Message> {
                // Collect info about update
                let user_id = user.id;
                let def_descr = user.username.clone().unwrap_or_default();
+               let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
                let def_descr = user.full_name() + &def_descr;
                let time = cx.update.date;
                

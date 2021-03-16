@@ -43,7 +43,7 @@ impl Users {
 impl Default for Users {
    fn default() -> Self {
       Self {
-         announcement_delta: 60 * 60 * 24,
+         announcement_delta: 5, //60 * 60 * 24,
          users: HashMap::new(),
       }
    }
@@ -65,9 +65,12 @@ impl Storage {
 
    // Save data
    fn save(&self) {
+      log::info!("Save1");
       if let Ok(str_data) = toml::to_string(&self.users) {
+         log::info!("Save: {}", str_data);
          fs::write(self.filename.as_str(), str_data).unwrap();
       }
+      log::info!("Save2");
    }
 
    // Announcement text for the user, if necessary

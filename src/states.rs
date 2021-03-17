@@ -48,8 +48,9 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
 
    // Prepare menu
    let commands = if is_admin {
-      vec![KeyboardButton::new("/origin"),
-      KeyboardButton::new("/List"),
+      vec![KeyboardButton::new("Изменить ориджин"),
+      KeyboardButton::new("Полный список"),
+      KeyboardButton::new("Список без адресов"),
       ]
    } else {
       vec![KeyboardButton::new("Изменить ориджин")]

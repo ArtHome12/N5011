@@ -19,6 +19,7 @@ pub static ADMIN_2: OnceCell<i32> = OnceCell::new();
 struct User {
    // id: i32,
    descr: String,
+   addr: Option<String>,
    last_seen: i32,
 }
 
@@ -63,6 +64,7 @@ pub async fn check_database() {
          PRIMARY KEY (user_id),
          user_id        INTEGER        NOT NULL,
          descr          VARCHAR(100)   NOT NULL,
+         addr           VARCHAR(100)   NOT NULL,
          last_seen      INTEGER        NOT NULL
       );
 
@@ -81,7 +83,7 @@ pub async fn check_database() {
 
 async fn load_user(id: i32) -> Option<User> {
    let client = DB.get().unwrap();
-   let query = client.query("SELECT descr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
+   let query = client.query("SELECT descr, addr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
 
    match query {
       Ok(data) => {
@@ -89,7 +91,8 @@ async fn load_user(id: i32) -> Option<User> {
             1 => Some(User{
                // id,
                descr: data[0].get(0),
-               last_seen: data[0].get(1),
+               addr: data[0].get(1),
+               last_seen: data[0].get(2),
             }),
             _ => None,
          }
@@ -126,7 +129,7 @@ pub async fn save_new_user(id: i32, time: i32, def_descr: &str) {
 
 pub async fn user_descr(id: i32) -> String {
    match load_user(id).await {
-      Some(user) => user.descr,
+      Some(user) => if user.addr.is_some() {format!("{}\n{}", user.addr.unwrap(), user.descr)} else {user.descr},
       None => String::default(),
    }
 }

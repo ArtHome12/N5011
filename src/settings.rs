@@ -47,3 +47,7 @@ pub fn interval() -> u32 {
    let atomic = INTERVAL.get().unwrap();
    atomic.load(Ordering::Relaxed)
 }
+
+pub fn init_interval() -> Result<(), ()> {
+   INTERVAL.set(AtomicU32::new(3600)).map_err(|_| ())
+}

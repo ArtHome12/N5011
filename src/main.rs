@@ -118,7 +118,7 @@ async fn run() {
    }
 
    // Default value before check_database()
-   set::set_interval(3600).expect("run() Error set_interval()");
+   set::init_interval().expect("run() Error init_interval()");
 
    // Создадим таблицу в БД, если её ещё нет
    db::check_database().await;

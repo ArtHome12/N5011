@@ -160,7 +160,7 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
          .send().
          await?;
 
-         next(state)
+         next(IntervalState { state })
       }
       _ => next(state),
    }

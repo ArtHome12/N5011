@@ -36,8 +36,8 @@ pub fn set_admins(admin1: i32, admin2: i32) -> Result<(), ()> {
    ADMINS.set(a).map_err(|_| ())
 }
 
-pub fn set_interval(v: u32) -> Result<(), ()> {
-   INTERVAL.set(v).map_err(|_| ())
+pub fn set_interval(v: i32) -> Result<(), ()> {
+   INTERVAL.set(v as u32).map_err(|_| ())
 }
 
 pub fn interval() -> u32 {

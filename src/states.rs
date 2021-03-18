@@ -12,10 +12,13 @@ use teloxide_macros::{Transition, teloxide, };
 use teloxide::{prelude::*,
    types::{ReplyMarkup, KeyboardButton, ReplyKeyboardMarkup, },
 };
+use std::convert::TryFrom;
 
 use crate::database as db;
+use crate::settings as set;
 
 
+// FSM states
 #[derive(Transition, From)]
 pub enum Dialogue {
    Start(StartState),
@@ -26,6 +29,36 @@ pub enum Dialogue {
 impl Default for Dialogue {
    fn default() -> Self {
        Self::Start(StartState { restarted: true })
+   }
+}
+
+// Commands for bot
+enum Command {
+   Origin,  // change origin
+   List, // List all users
+   Interval, // Set time interval for announcements
+}
+
+impl TryFrom<&str> for Command {
+   type Error = &'static str;
+
+   fn try_from(s: &str) -> Result<Self, Self::Error> {
+      match s {
+         "Изменить ориджин" => Ok(Command::Origin),
+         "Список" => Ok(Command::List),
+         "Интервал" => Ok(Command::Interval),
+         _ => Err("Неизвестная команда"),
+      }
+   }
+}
+
+impl From<Command> for String {
+   fn from(c: Command) -> String {
+      match c {
+         Command::Origin => String::from("Изменить ориджин"),
+         Command::List => String::from("Список"),
+         Command::Interval => String::from("Интервал"),
+      }
    }
 }
 
@@ -44,26 +77,26 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
 
    // For admin and regular users there is different interface
    let user_id = user.unwrap().id;
-   let is_admin = db::is_admin(user_id);
+   let is_admin = set::is_admin(user_id);
 
    // Prepare menu
    let commands = if is_admin {
-      vec![KeyboardButton::new("Изменить ориджин"),
-      KeyboardButton::new("Полный список"),
-      KeyboardButton::new("Список без адресов"),
+      vec![KeyboardButton::new(Command::Origin),
+      KeyboardButton::new(Command::List),
+      KeyboardButton::new(Command::Interval),
       ]
    } else {
-      vec![KeyboardButton::new("Изменить ориджин")]
+      vec![KeyboardButton::new(Command::Origin)]
    };
 
    let markup = ReplyKeyboardMarkup::default()
    .append_row(commands)
    .resize_keyboard(true);
 
-   let descr = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
-   let descr = descr + "Добро пожаловать. Выберите команду на кнопке внизу";
+   let info = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
+   let info = info + "Добро пожаловать. Выберите команду на кнопке внизу";
 
-   cx.answer(descr)
+   cx.answer(info)
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send()
    .await?;
@@ -77,30 +110,51 @@ pub struct CommandState {
 
 #[teloxide(subtransition)]
 async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
-   // Handle commands
-   if ans == "Изменить ориджин" {
-      // Collect info about update
-      let descr = db::user_descr(state.user_id).await;
-      let descr = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko\n Для отказа нажмите /", descr);
-
-      let markup = ReplyKeyboardMarkup::default()
-      .append_row(vec![KeyboardButton::new("/")])
-      .resize_keyboard(true);
-
-      cx.answer(descr)
-      .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
-      .send().
-      await?;
-
-      next(OriginState { state })
-   } else {
+   // Parse text from user
+   let command = Command::try_from(ans.as_str());
+   if command.is_err() {
       cx.answer_str(format!("Неизвестная команда {}. Пожалуйста, выберите одну из команд внизу (если панель с кнопками скрыта, откройте её)", ans)).await?;
 
       // Stay in previous state
-      next(state)
+      return next(state)
+   }
+
+   // Handle commands
+   match command.unwrap() {
+      Command::Origin => {
+         // Collect info about update
+         let info = db::user_descr(state.user_id).await;
+         let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko\n Для отказа нажмите /", info);
+
+         cx.answer(info)
+         .reply_markup(markup_for_cancel())
+         .send().
+         await?;
+
+         next(OriginState { state })
+      }
+
+      Command::Interval => {
+         let info = format!("Время с момента последнего сообщения пользователя для напоминания его адреса {} сек. Введите новый интервал в секундах или / для отмены", set::interval());
+
+         cx.answer(info)
+         .reply_markup(markup_for_cancel())
+         .send().
+         await?;
+
+         next(state)
+      }
+      _ => next(state),
    }
 }
 
+// Frequently used cancel menu
+fn markup_for_cancel() -> ReplyMarkup {
+   let markup = ReplyKeyboardMarkup::default()
+   .append_row(vec![KeyboardButton::new("/")])
+   .resize_keyboard(true);
+   ReplyMarkup::ReplyKeyboardMarkup(markup)
+}
 
 // #[derive(Generic)]
 pub struct OriginState {
@@ -109,7 +163,7 @@ pub struct OriginState {
 
 #[teloxide(subtransition)]
 async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
-   let descr = {if ans == "/" {
+   let info = {if ans == "/" {
       String::from("Ориджин не изменён")
    } else {
       // Save to database
@@ -122,7 +176,7 @@ async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> Transitio
    .append_row(vec![KeyboardButton::new("В начало")])
    .resize_keyboard(true);
 
-   cx.answer(descr)
+   cx.answer(info)
    .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
    .send().
    await?;

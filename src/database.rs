@@ -9,12 +9,10 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 
 use once_cell::sync::OnceCell;
 
+use crate::settings as set;
+
 // Database
 pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();
-
-// Admin ID
-pub static ADMIN_1: OnceCell<i32> = OnceCell::new();
-pub static ADMIN_2: OnceCell<i32> = OnceCell::new();
 
 struct User {
    // id: i32,
@@ -23,17 +21,13 @@ struct User {
    last_seen: i32,
 }
 
-pub fn is_admin(user_id: i32) -> bool {
-   ADMIN_1.get().unwrap() == &user_id || ADMIN_2.get().unwrap() == &user_id
-}
-
 // Announcement text for the user, if necessary
 pub async fn announcement(user_id: i32, time: i32, def_descr: &str) -> Option<String> {
 
    match load_user(user_id).await {
       Some(user) => {
          // If enough time has passed and origin was changed
-         if time - user.last_seen > 3600 && user.descr != def_descr {
+         if (time - user.last_seen) as u32 > set::interval() && user.descr != def_descr {
             update_user_time(user_id, time).await;
             Some(user.descr)
          } else {
@@ -79,6 +73,15 @@ pub async fn check_database() {
    } else {
       log::info!("Database exists");
    }
+
+   // Init settings
+   let data = client.query_one("SELECT announcement_delta FROM settings", &[]).await;
+
+   if let Err(_) = data.map_err(|_| ()).and_then(|row| set::set_interval(row.get(0))) {
+      log::info!("check_database() Error load settings");
+   }
+
+   log::info!("Interval for announcements {} sec", set::interval());
 }
 
 async fn load_user(id: i32) -> Option<User> {

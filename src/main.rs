@@ -22,7 +22,9 @@ use crate::states::Dialogue;
 
 mod states;
 mod database;
+mod settings;
 use database::{self as db, };
+use settings::{self as set, };
 
 
 async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, Infallible> {
@@ -119,38 +121,11 @@ async fn run() {
    db::check_database().await;
 
    // Сохраним коды админов
-   let admin: i32 = env::var("ADMIN_ID1").expect("ADMIN_ID1 env variable missing").parse().unwrap_or_default();
-   db::ADMIN_1.set(admin).expect("ADMIN_ID1 set fail");
-   let admin:i32 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
-   db::ADMIN_2.set(admin).expect("ADMIN_ID2 set fail");
+   let admin1: i32 = env::var("ADMIN_ID1").expect("ADMIN_ID1 env variable missing").parse().unwrap_or_default();
+   let admin2:i32 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
+   set::set_admins(admin1, admin2).expect("ADMIN_ID2 set fail");
 
    let bot = Bot::from_env();
-
-   /* Dispatcher::new(bot.clone())
-   .messages_handler(DialogueDispatcher::new(|cx| async move {
-      let res = handle_message(cx).await;
-      if let Err(e) = res {
-         log::info!("run error {}", e);
-         DialogueStage::Exit
-      } else {
-         res.unwrap()
-      }
-   })) */
-
-   /*.messages_handler(|rx: DispatcherHandlerRx<Message>| {
-      rx.for_each_concurrent(None, |message| async move {
-         handle_message(message).await.expect("Something wrong with the bot!");
-      })
-   })*/
-   /* .callback_queries_handler(|rx: DispatcherHandlerRx<CallbackQuery>| {
-      rx.for_each_concurrent(None, |cx| async move {
-         handle_callback(cx).await
-      })
-   }) */
-   /* .dispatch_with_listener(
-      webhook(bot).await,
-      LoggingErrorHandler::with_custom_text("An error from the update listener"),
-   )*/
 
    teloxide::dialogues_repl_with_listener(
       bot.clone(),
@@ -160,26 +135,6 @@ async fn run() {
       webhook(bot).await
    )
   .await;
-
-   /*let handler = Arc::new(handler);
-
-   Dispatcher::new(bot)
-      .messages_handler(DialogueDispatcher::new(
-          move |DialogueWithCx { cx, dialogue }: DialogueWithCx<Message, D, Infallible>| {
-              let handler = Arc::clone(&handler);
-
-              async move {
-                  let dialogue = dialogue.expect("std::convert::Infallible");
-                  handler(cx, dialogue).await
-              }
-          },
-      ))
-      .dispatch_with_listener(
-         webhook(bot).await,
-          LoggingErrorHandler::with_custom_text("An error from the update listener"),
-      )
-      .await;*/
-
 }
 
 async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {

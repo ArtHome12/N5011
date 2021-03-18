@@ -24,6 +24,7 @@ pub enum Dialogue {
    Start(StartState),
    Command(CommandState),
    Origin(OriginState),
+   Interval(IntervalState),
 }
 
 impl Default for Dialogue {
@@ -62,6 +63,23 @@ impl From<Command> for String {
    }
 }
 
+// Frequently used start menu
+fn markup_for_start() -> ReplyMarkup {
+   let markup = ReplyKeyboardMarkup::default()
+   .append_row(vec![KeyboardButton::new("В начало")])
+   .resize_keyboard(true);
+   ReplyMarkup::ReplyKeyboardMarkup(markup)
+}
+
+// Frequently used start menu
+fn markup_for_cancel() -> ReplyMarkup {
+   let markup = ReplyKeyboardMarkup::default()
+   .append_row(vec![KeyboardButton::new("/")])
+   .resize_keyboard(true);
+   ReplyMarkup::ReplyKeyboardMarkup(markup)
+}
+
+
 pub struct StartState {
    restarted: bool,
 }
@@ -82,7 +100,7 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
    // Prepare menu
    let commands = if is_admin {
       vec![KeyboardButton::new(Command::Origin),
-      KeyboardButton::new(Command::List),
+      // KeyboardButton::new(Command::List),
       KeyboardButton::new(Command::Interval),
       ]
    } else {
@@ -124,7 +142,7 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
       Command::Origin => {
          // Collect info about update
          let info = db::user_descr(state.user_id).await;
-         let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102,Fips_BBS,Ufa,Artem_G.Khomenko\n Для отказа нажмите /", info);
+         let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102 город, ФИО\n Для отказа нажмите /", info);
 
          cx.answer(info)
          .reply_markup(markup_for_cancel())
@@ -148,14 +166,6 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
    }
 }
 
-// Frequently used cancel menu
-fn markup_for_cancel() -> ReplyMarkup {
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(vec![KeyboardButton::new("/")])
-   .resize_keyboard(true);
-   ReplyMarkup::ReplyKeyboardMarkup(markup)
-}
-
 // #[derive(Generic)]
 pub struct OriginState {
    state: CommandState,
@@ -163,21 +173,53 @@ pub struct OriginState {
 
 #[teloxide(subtransition)]
 async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
-   let info = {if ans == "/" {
+   let info = if ans == "/" {
       String::from("Ориджин не изменён")
    } else {
       // Save to database
       db::update_user_descr(state.state.user_id, &ans).await;
 
       format!("Ваш новый ориджин {} сохранён", ans)
-   }};
-
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(vec![KeyboardButton::new("В начало")])
-   .resize_keyboard(true);
+   };
 
    cx.answer(info)
-   .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
+   .reply_markup(markup_for_start())
+   .send().
+   await?;
+   next(StartState { restarted: false })
+}
+
+// #[derive(Generic)]
+pub struct IntervalState {
+   state: CommandState,
+}
+
+#[teloxide(subtransition)]
+async fn interval(state: IntervalState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
+   let info = if ans == "/" {
+      String::from("Интервал не изменён")
+   } else {
+      // Check access rights
+      if !state.state.is_admin {
+         String::from("Недостаточно прав")
+      } else {
+         // Checking the correctness of the input
+         match ans.parse::<u32>() {
+            Ok(v) => {
+               // Save to database
+               if let Ok(()) = set::set_interval(v as i32) {
+                  format!("Новый интервал в {} секунд сохранён", ans)
+               } else {
+                  String::from("Ошибка сохранения интервала, обратитесь к разработчику")
+               }
+            },
+            _ =>  format!("Неверный ввод, ожидалось целое число, например 3600 для часового интервала, вы ввели {}. Интервал не изменён", ans),
+         }
+      }
+   };
+
+   cx.answer(info)
+   .reply_markup(markup_for_start())
    .send().
    await?;
    next(StartState { restarted: false })

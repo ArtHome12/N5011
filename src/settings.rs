@@ -10,6 +10,8 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use once_cell::sync::OnceCell;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use crate::database as db;
+
 // Admin ID from environment
 static ADMINS: OnceCell<Admins> = OnceCell::new();
 
@@ -37,10 +39,13 @@ pub fn set_admins(admin1: i32, admin2: i32) -> Result<(), ()> {
    ADMINS.set(a).map_err(|_| ())
 }
 
-pub fn set_interval(v: i32) -> Result<(), ()> {
+pub async fn set_interval(v: i32) -> Result<(), ()> {
+   // Internal storage
    let atomic = INTERVAL.get().ok_or(())?;
    atomic.store(v as u32, Ordering::Relaxed);
-   Ok(())
+
+   // Database
+   db::update_interval(v).await
 }
 
 pub fn interval() -> u32 {
@@ -48,6 +53,6 @@ pub fn interval() -> u32 {
    atomic.load(Ordering::Relaxed)
 }
 
-pub fn init_interval() -> Result<(), ()> {
-   INTERVAL.set(AtomicU32::new(3600)).map_err(|_| ())
+pub fn init_interval(v: i32) -> Result<(), ()> {
+   INTERVAL.set(AtomicU32::new(v as u32)).map_err(|_| ())
 }

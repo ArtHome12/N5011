@@ -77,7 +77,7 @@ pub async fn check_database() {
    // Init settings
    let data = client.query_one("SELECT announcement_delta FROM settings", &[]).await;
 
-   if let Err(_) = data.map_err(|_| ()).and_then(|row| set::set_interval(row.get(0))) {
+   if let Err(_) = data.map_err(|_| ()).and_then(|row| set::init_interval(row.get(0))) {
       log::info!("check_database() Error load settings");
    }
 
@@ -145,6 +145,17 @@ pub async fn update_user_descr(id: i32, descr: &str) {
       Ok(1) => (),
       Ok(n) => log::info!("update_user_descr error: {}, {} - updated {} records", id, descr, n),
       Err(e) => log::info!("update_user_descr error: {}, {} - {}", id, descr, e),
+   }
+}
+
+pub async fn update_interval(i: i32) -> Result<(), ()> {
+   let client = DB.get().unwrap();
+   let query = client.execute("UPDATE settings SET announcement_delta = $1::INTEGER", &[&i]).await;
+
+   match query {
+      Ok(1) => Ok(()),
+      Ok(n) => {log::info!("update_interval error: {} - updated {} records", i, n); Err(())},
+      Err(e) => {log::info!("update_interval error: {} - {}", i, e); Err(())},
    }
 }
 

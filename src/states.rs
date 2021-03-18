@@ -207,7 +207,7 @@ async fn interval(state: IntervalState, cx: TransitionIn, ans: String,) -> Trans
          match ans.parse::<u32>() {
             Ok(v) => {
                // Save to database
-               if let Ok(()) = set::set_interval(v as i32) {
+               if let Ok(()) = set::set_interval(v as i32).await {
                   format!("Новый интервал в {} секунд сохранён", ans)
                } else {
                   String::from("Ошибка сохранения интервала, обратитесь к разработчику")

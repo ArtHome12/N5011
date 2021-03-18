@@ -8,11 +8,12 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use once_cell::sync::OnceCell;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 // Admin ID from environment
 static ADMINS: OnceCell<Admins> = OnceCell::new();
 
-static INTERVAL: OnceCell<u32> = OnceCell::new();
+static INTERVAL: OnceCell<AtomicU32> = OnceCell::new();
 
 struct Admins {
    admin1: i32,
@@ -37,9 +38,12 @@ pub fn set_admins(admin1: i32, admin2: i32) -> Result<(), ()> {
 }
 
 pub fn set_interval(v: i32) -> Result<(), ()> {
-   INTERVAL.set(v as u32).map_err(|_| ())
+   let atomic = INTERVAL.get().ok_or(())?;
+   atomic.store(v as u32, Ordering::Relaxed);
+   Ok(())
 }
 
 pub fn interval() -> u32 {
-   *INTERVAL.get_or_init(|| 3600)
+   let atomic = INTERVAL.get().unwrap();
+   atomic.load(Ordering::Relaxed)
 }

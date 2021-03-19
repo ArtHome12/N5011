@@ -184,7 +184,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
                 from.id,
                 ChatPermissions::default(),
             )
-            .until_date(cx.update.date + 60)
+            .until_date(cx.update.date + 3600)
             .send().
             await;
 

@@ -192,7 +192,8 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
             let res = if let Err(e) = res {
                cx.reply_to(format!("{}", e))
             } else {
-               let text = format!("RO на часок. Не расстаивайся, {}!", def_descr);
+               let name = from.username.clone().unwrap_or_default();
+               let text = format!("RO на часок. Не расстаивайся, {}!", name);
                cx.bot.send_message(chat_id, text)
             };
             if let Err(e) = res.send().await {

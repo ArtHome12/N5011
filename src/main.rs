@@ -174,7 +174,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
    } else {
       // Check moderate command
       let msg = cx.update.reply_to_message();
-      if set::is_admin(user_id) && text == "+" && msg.is_some() {
+      if set::is_admin(user_id) && text == "[+]" && msg.is_some() {
 
          // Extract the author and restrict
          if let Some(from) = msg.unwrap().from() {

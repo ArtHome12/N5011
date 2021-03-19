@@ -153,7 +153,7 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
       }
 
       Command::Interval => {
-         let info = format!("Время с момента последнего сообщения пользователя для напоминания его адреса {} сек. Введите новый интервал в секундах или / для отмены", set::interval());
+         let info = format!("Время с момента последнего сообщения пользователя для напоминания его адреса {} ч. Введите новый интервал в часах или / для отмены", set::interval() / 3600);
 
          cx.answer(info)
          .reply_markup(markup_for_cancel())
@@ -207,13 +207,13 @@ async fn interval(state: IntervalState, cx: TransitionIn, ans: String,) -> Trans
          match ans.parse::<u32>() {
             Ok(v) => {
                // Save to database
-               if let Ok(()) = set::set_interval(v as i32).await {
-                  format!("Новый интервал в {} секунд сохранён", ans)
+               if let Ok(()) = set::set_interval(v as i32 *3600).await {
+                  format!("Новый интервал в {} ч. сохранён", ans)
                } else {
                   String::from("Ошибка сохранения интервала, обратитесь к разработчику")
                }
             },
-            _ =>  format!("Неверный ввод, ожидалось целое число, например 3600 для часового интервала, вы ввели {}. Интервал не изменён", ans),
+            _ =>  format!("Неверный ввод, ожидалось целое число, например 1 для часового интервала, вы ввели {}. Интервал не изменён", ans),
          }
       }
    };

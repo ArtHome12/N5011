@@ -139,35 +139,43 @@ async fn run() {
 
 async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
 
-   // Collect information and guaranteed to save the user in the database
-   let announcement = if let Some(user) = cx.update.from() {
-      // Collect info about update
-      let user_id = user.id;
-      let def_descr = user.username.clone().unwrap_or_default();
-      let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
-      let def_descr = user.full_name() + &def_descr;
-      let time = cx.update.date;
-
-      // Make announcement if needs
-      db::announcement(user_id, time, &def_descr).await
-   } else {
+   let user = cx.update.from();
+   if user.is_none() {
       log::info!("Error no user in cx.update.from()");
-      None
-   };
+      return next(dialogue);
+   }
+
+   // Collect info about update
+   let user = user.unwrap();
+   let user_id = user.id;
+   let def_descr = user.username.clone().unwrap_or_default();
+   let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
+   let def_descr = user.full_name() + &def_descr;
+   let time = cx.update.date;
+   let text = cx.update.text_owned().unwrap_or_default();
+
+   // Collect information and guaranteed to save the user in the database
+   let announcement = db::announcement(user_id, time, &def_descr).await;
 
    // Negative for chats, positive personal
    let chat_id = cx.update.chat_id();
 
    if chat_id > 0 {
-      // Private messages with FSM
-      match cx.update.text_owned() {
-         None => {
-            cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
-            next(dialogue)
-         }
-         Some(ans) => dialogue.react(cx, ans).await,
+      if text == "" {
+         cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
+         next(dialogue)
+      } else {
+         // Private messages with FSM
+         dialogue.react(cx, text).await
       }
    } else {
+      // Check moderate command
+      if set::is_admin(user_id) && text == "+" {
+         cx.reply_to("RO на часок. Не расстаивайся!")
+         .send()
+         .await?;
+      }
+
       // Make announcement in chat if needs
       if let Some(announcement) = announcement {
          cx.reply_to(announcement)

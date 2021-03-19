@@ -163,7 +163,9 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
 
    if chat_id > 0 {
       if text == "" {
-         cx.answer_str("Текстовое сообщение, пожалуйста!").await?;
+         if let Err(e) = cx.answer_str("Текстовое сообщение, пожалуйста!").await {
+            log::info!("Error main handle_message(): {}", e);
+         }
          next(dialogue)
       } else {
          // Private messages with FSM
@@ -186,14 +188,17 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
             .send().
             await;
 
-            if let Err(e) = res {
-               log::info!("Error restrict_chat_member(): {}", e);
+            // Notify chat members
+            let res = if let Err(e) = res {
+               cx.reply_to(format!("{}", e))
+            } else {
+               let text = format!("RO на часок. Не расстаивайся, {}!", def_descr);
+               cx.bot.send_message(chat_id, text)
+            };
+            if let Err(e) = res.send().await {
+               log::info!("Error main handle_message 2 (): {}", e);
             }
-         }
-         
-         /* cx.reply_to("RO на часок. Не расстаивайся!")
-         .send()
-         .await?; */
+      }
       }
 
       // Make announcement in chat if needs

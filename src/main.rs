@@ -9,13 +9,14 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 
 use std::{convert::Infallible, env, net::SocketAddr};
 use teloxide::{prelude::*, dispatching::update_listeners, };
+use teloxide::types::ChatPermissions;
 use tokio::sync::mpsc;
 use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 
-extern crate frunk;
+// extern crate frunk;
 
 use crate::states::Dialogue;
 
@@ -170,10 +171,23 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
       }
    } else {
       // Check moderate command
-      if set::is_admin(user_id) && text == "+" {
-         cx.reply_to("RO на часок. Не расстаивайся!")
+      let msg = cx.update.reply_to_message();
+      if set::is_admin(user_id) && text == "+" && msg.is_some() {
+
+         // Extract the author and restrict
+         if let Some(from) = msg.unwrap().from() {
+            cx.bot
+            .restrict_chat_member(
+                chat_id,
+                from.id,
+                ChatPermissions::default(),
+            )
+            .until_date(cx.update.date + 60);
+         }
+         
+         /* cx.reply_to("RO на часок. Не расстаивайся!")
          .send()
-         .await?;
+         .await?; */
       }
 
       // Make announcement in chat if needs

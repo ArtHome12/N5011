@@ -173,16 +173,19 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
       // Check moderate command
       let msg = cx.update.reply_to_message();
       if set::is_admin(user_id) && text == "+" && msg.is_some() {
-
+         log::info!("Here1");
          // Extract the author and restrict
          if let Some(from) = msg.unwrap().from() {
+            log::info!("Here2");
             cx.bot
             .restrict_chat_member(
                 chat_id,
                 from.id,
                 ChatPermissions::default(),
             )
-            .until_date(cx.update.date + 60);
+            .until_date(cx.update.date + 60)
+            .send().
+            await?;
          }
          
          /* cx.reply_to("RO на часок. Не расстаивайся!")

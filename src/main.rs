@@ -16,8 +16,6 @@ use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 
-// extern crate frunk;
-
 use crate::states::Dialogue;
 
 
@@ -45,7 +43,7 @@ pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infa
    let path = format!("bot{}", teloxide_token);
    let url = format!("https://{}/{}", host, path);
 
-   bot.set_webhook(url).send().await.expect("Cannot setup a webhook");
+   bot.set_webhook(url).await.expect("Cannot setup a webhook");
 
    let (tx, rx) = mpsc::unbounded_channel();
 
@@ -126,7 +124,7 @@ async fn run() {
    let admin2:i32 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
    set::set_admins(admin1, admin2).expect("ADMIN_ID2 set fail");
 
-   let bot = Bot::from_env();
+   let bot = Bot::from_env().auto_send();
 
    teloxide::dialogues_repl_with_listener(
       bot.clone(),
@@ -138,7 +136,7 @@ async fn run() {
   .await;
 }
 
-async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
+async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dialogue) -> TransitionOut<Dialogue> {
 
    let user = cx.update.from();
    if user.is_none() {
@@ -163,7 +161,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
 
    if chat_id > 0 {
       if text == "" {
-         if let Err(e) = cx.answer_str("Текстовое сообщение, пожалуйста!").await {
+         if let Err(e) = cx.answer("Текстовое сообщение, пожалуйста!").await {
             log::info!("Error main handle_message(): {}", e);
          }
          next(dialogue)
@@ -185,8 +183,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
                 ChatPermissions::default(),
             )
             .until_date(cx.update.date + 3600)
-            .send().
-            await;
+            .await;
 
             // Notify chat members
             let res = if let Err(e) = res {
@@ -196,7 +193,7 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
                let text = format!("RO на часок. Не расстраивайся, {}!", name);
                cx.bot.send_message(chat_id, text)
             };
-            if let Err(e) = res.send().await {
+            if let Err(e) = res.await {
                log::info!("Error main handle_message 2 (): {}", e);
             }
       }
@@ -205,7 +202,6 @@ async fn handle_message(cx: UpdateWithCx<Message>, dialogue: Dialogue) -> Transi
       // Make announcement in chat if needs
       if let Some(announcement) = announcement {
          cx.reply_to(announcement)
-         .send()
          .await?;
       }
 

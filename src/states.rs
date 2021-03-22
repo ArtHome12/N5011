@@ -10,7 +10,7 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use derive_more::From;
 use teloxide_macros::{Transition, teloxide, };
 use teloxide::{prelude::*,
-   types::{ReplyMarkup, KeyboardButton, ReplyKeyboardMarkup, },
+   types::{ReplyMarkup, KeyboardButton, },
 };
 use std::convert::TryFrom;
 

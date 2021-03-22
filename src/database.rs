@@ -22,7 +22,7 @@ struct User {
 }
 
 // Announcement text for the user, if necessary
-pub async fn announcement(user_id: i32, time: i32, def_descr: &str) -> Option<String> {
+pub async fn announcement(user_id: i64, time: i32, def_descr: &str) -> Option<String> {
 
    match load_user(user_id).await {
       Some(user) => {
@@ -84,7 +84,7 @@ pub async fn check_database() {
    log::info!("Interval for announcements {} sec", set::interval());
 }
 
-async fn load_user(id: i32) -> Option<User> {
+async fn load_user(id: i64) -> Option<User> {
    let client = DB.get().unwrap();
    let query = client.query("SELECT descr, addr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
 
@@ -108,7 +108,7 @@ async fn load_user(id: i32) -> Option<User> {
    }
 }
 
-pub async fn update_user_time(id: i32, time: i32) {
+pub async fn update_user_time(id: i64, time: i32) {
    let client = DB.get().unwrap();
    let query = client.execute("UPDATE users SET last_seen = $1::INTEGER WHERE user_id = $2::INTEGER", &[&time, &id]).await;
 
@@ -119,7 +119,7 @@ pub async fn update_user_time(id: i32, time: i32) {
    }
 }
 
-pub async fn save_new_user(id: i32, time: i32, def_descr: &str) {
+pub async fn save_new_user(id: i64, time: i32, def_descr: &str) {
    let client = DB.get().unwrap();
    let query = client.execute("INSERT INTO users (user_id, descr, last_seen) VALUES ($1::INTEGER, $2::VARCHAR(100), $3::INTEGER)", &[&id, &def_descr, &time]).await;
 
@@ -130,14 +130,14 @@ pub async fn save_new_user(id: i32, time: i32, def_descr: &str) {
    }
 }
 
-pub async fn user_descr(id: i32) -> String {
+pub async fn user_descr(id: i64) -> String {
    match load_user(id).await {
       Some(user) => if user.addr.is_some() {format!("{}\n{}", user.addr.unwrap(), user.descr)} else {user.descr},
       None => String::default(),
    }
 }
 
-pub async fn update_user_descr(id: i32, descr: &str) {
+pub async fn update_user_descr(id: i64, descr: &str) {
    let client = DB.get().unwrap();
    let query = client.execute("UPDATE users SET descr = $1::VARCHAR(100) WHERE user_id = $2::INTEGER", &[&descr, &id]).await;
 

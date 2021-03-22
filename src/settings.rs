@@ -18,11 +18,11 @@ static ADMINS: OnceCell<Admins> = OnceCell::new();
 static INTERVAL: OnceCell<AtomicU32> = OnceCell::new();
 
 struct Admins {
-   admin1: i32,
-   admin2: i32,
+   admin1: i64,
+   admin2: i64,
 }
 
-pub fn is_admin(user_id: i32) -> bool {
+pub fn is_admin(user_id: i64) -> bool {
    if let Some(a) = ADMINS.get() {
       a.admin1 == user_id || a.admin2 == user_id
    } else {
@@ -30,7 +30,7 @@ pub fn is_admin(user_id: i32) -> bool {
    }
 }
 
-pub fn set_admins(admin1: i32, admin2: i32) -> Result<(), ()> {
+pub fn set_admins(admin1: i64, admin2: i64) -> Result<(), ()> {
    let a = Admins {
       admin1,
       admin2,

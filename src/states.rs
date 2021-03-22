@@ -63,20 +63,11 @@ impl From<Command> for String {
    }
 }
 
-// Frequently used start menu
-fn markup_for_start() -> ReplyMarkup {
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(vec![KeyboardButton::new("В начало")])
-   .resize_keyboard(true);
-   ReplyMarkup::ReplyKeyboardMarkup(markup)
-}
-
-// Frequently used start menu
-fn markup_for_cancel() -> ReplyMarkup {
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(vec![KeyboardButton::new("/")])
-   .resize_keyboard(true);
-   ReplyMarkup::ReplyKeyboardMarkup(markup)
+// Frequently used menu
+fn one_button_markup(label: &'static str) -> ReplyMarkup {
+   let keyboard = vec![vec![KeyboardButton::new(label)]];
+   ReplyMarkup::keyboad(keyboard)
+   // .resize_keyboard(true);
 }
 
 
@@ -85,11 +76,11 @@ pub struct StartState {
 }
 
 #[teloxide(subtransition)]
-async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> TransitionOut<Dialogue> {
+async fn start(state: StartState, cx: TransitionIn<AutoSend<Bot>>, _ans: String,) -> TransitionOut<Dialogue> {
    // Extract user id
    let user = cx.update.from();
    if user.is_none() {
-      cx.answer_str("Error, no user").await?;
+      cx.answer("Error, no user").await?;
       return next(StartState { restarted: false });
    }
 
@@ -107,31 +98,29 @@ async fn start(state: StartState, cx: TransitionIn, _ans: String,) -> Transition
       vec![KeyboardButton::new(Command::Origin)]
    };
 
-   let markup = ReplyKeyboardMarkup::default()
-   .append_row(commands)
-   .resize_keyboard(true);
+   let markup = ReplyMarkup::keyboad(vec![commands]);
 
    let info = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
    let info = info + "Добро пожаловать. Выберите команду на кнопке внизу";
 
    cx.answer(info)
-   .reply_markup(ReplyMarkup::ReplyKeyboardMarkup(markup))
+   .reply_markup(markup)
    .send()
    .await?;
    next(CommandState { user_id, is_admin })
 }
 
 pub struct CommandState {
-   user_id: i32,
+   user_id: i64,
    is_admin: bool,
 }
 
 #[teloxide(subtransition)]
-async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
+async fn select_command(state: CommandState, cx: TransitionIn<AutoSend<Bot>>, ans: String,) -> TransitionOut<Dialogue> {
    // Parse text from user
    let command = Command::try_from(ans.as_str());
    if command.is_err() {
-      cx.answer_str(format!("Неизвестная команда {}. Пожалуйста, выберите одну из команд внизу (если панель с кнопками скрыта, откройте её)", ans)).await?;
+      cx.answer(format!("Неизвестная команда {}. Пожалуйста, выберите одну из команд внизу (если панель с кнопками скрыта, откройте её)", ans)).await?;
 
       // Stay in previous state
       return next(state)
@@ -145,7 +134,7 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
          let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102 город, ФИО\n Для отказа нажмите /", info);
 
          cx.answer(info)
-         .reply_markup(markup_for_cancel())
+         .reply_markup(one_button_markup("/"))
          .send().
          await?;
 
@@ -156,7 +145,7 @@ async fn select_command(state: CommandState, cx: TransitionIn, ans: String,) -> 
          let info = format!("Время с момента последнего сообщения пользователя для напоминания его адреса {} ч. Введите новый интервал в часах или / для отмены", set::interval() / 3600);
 
          cx.answer(info)
-         .reply_markup(markup_for_cancel())
+         .reply_markup(one_button_markup("/"))
          .send().
          await?;
 
@@ -172,7 +161,7 @@ pub struct OriginState {
 }
 
 #[teloxide(subtransition)]
-async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
+async fn origin(state: OriginState, cx: TransitionIn<AutoSend<Bot>>, ans: String,) -> TransitionOut<Dialogue> {
    let info = if ans == "/" {
       String::from("Ориджин не изменён")
    } else {
@@ -183,9 +172,9 @@ async fn origin(state: OriginState, cx: TransitionIn, ans: String,) -> Transitio
    };
 
    cx.answer(info)
-   .reply_markup(markup_for_start())
-   .send().
-   await?;
+   .reply_markup(one_button_markup("В начало"))
+   .await?;
+   
    next(StartState { restarted: false })
 }
 
@@ -195,7 +184,7 @@ pub struct IntervalState {
 }
 
 #[teloxide(subtransition)]
-async fn interval(state: IntervalState, cx: TransitionIn, ans: String,) -> TransitionOut<Dialogue> {
+async fn interval(state: IntervalState, cx: TransitionIn<AutoSend<Bot>>, ans: String,) -> TransitionOut<Dialogue> {
    let info = if ans == "/" {
       String::from("Интервал не изменён")
    } else {
@@ -219,7 +208,7 @@ async fn interval(state: IntervalState, cx: TransitionIn, ans: String,) -> Trans
    };
 
    cx.answer(info)
-   .reply_markup(markup_for_start())
+   .reply_markup(one_button_markup("В начало"))
    .send().
    await?;
    next(StartState { restarted: false })

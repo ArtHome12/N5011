@@ -10,7 +10,9 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use std::{convert::Infallible, env, net::SocketAddr};
 use teloxide::{prelude::*, dispatching::update_listeners, };
 use teloxide::types::ChatPermissions;
+
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
@@ -31,7 +33,7 @@ async fn handle_rejection(error: warp::Rejection) -> Result<impl warp::Reply, In
    Ok(StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infallible> {
+pub async fn webhook<'a>(bot: AutoSend<Bot>) -> impl update_listeners::UpdateListener<Infallible> {
    // Heroku auto defines a port value
    let teloxide_token = env::var("TELOXIDE_TOKEN").expect("TELOXIDE_TOKEN env variable missing");
    let port: u16 = env::var("PORT")
@@ -76,7 +78,7 @@ pub async fn webhook<'a>(bot: Bot) -> impl update_listeners::UpdateListener<Infa
 
    let address = format!("0.0.0.0:{}", port);
    tokio::spawn(serve.run(address.parse::<SocketAddr>().unwrap()));
-   rx
+   UnboundedReceiverStream::new(rx)
 }
 
 #[tokio::main]
@@ -120,8 +122,8 @@ async fn run() {
    db::check_database().await;
 
    // Сохраним коды админов
-   let admin1: i32 = env::var("ADMIN_ID1").expect("ADMIN_ID1 env variable missing").parse().unwrap_or_default();
-   let admin2:i32 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
+   let admin1  = env::var("ADMIN_ID1").expect("ADMIN_ID1 env variable missing").parse().unwrap_or_default();
+   let admin2 = env::var("ADMIN_ID2").expect("ADMIN_ID2 env variable missing").parse().unwrap_or_default();
    set::set_admins(admin1, admin2).expect("ADMIN_ID2 set fail");
 
    let bot = Bot::from_env().auto_send();
@@ -151,7 +153,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
    let def_descr = user.full_name() + &def_descr;
    let time = cx.update.date;
-   let text = cx.update.text_owned().unwrap_or_default();
+   let text = String::from(cx.update.text().unwrap_or_default());
 
    // Collect information and guaranteed to save the user in the database
    let announcement = db::announcement(user_id, time, &def_descr).await;
@@ -176,13 +178,13 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
 
          // Extract the author and restrict
          if let Some(from) = msg.unwrap().from() {
-            let res = cx.bot
+            let res = cx.requester
             .restrict_chat_member(
                 chat_id,
                 from.id,
                 ChatPermissions::default(),
             )
-            .until_date(cx.update.date + 3600)
+            .until_date(cx.update.date as u64 + 3600u64)
             .await;
 
             // Notify chat members
@@ -191,7 +193,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
             } else {
                let name = from.username.clone().unwrap_or_default();
                let text = format!("RO на часок. Не расстраивайся, {}!", name);
-               cx.bot.send_message(chat_id, text)
+               cx.requester.send_message(chat_id, text)
             };
             if let Err(e) = res.await {
                log::info!("Error main handle_message 2 (): {}", e);

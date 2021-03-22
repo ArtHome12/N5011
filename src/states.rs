@@ -10,7 +10,7 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use derive_more::From;
 use teloxide_macros::{Transition, teloxide, };
 use teloxide::{prelude::*,
-   types::{ReplyMarkup, KeyboardButton, },
+   types::{ReplyMarkup, KeyboardButton, KeyboardMarkup, },
 };
 use std::convert::TryFrom;
 
@@ -66,8 +66,10 @@ impl From<Command> for String {
 // Frequently used menu
 fn one_button_markup(label: &'static str) -> ReplyMarkup {
    let keyboard = vec![vec![KeyboardButton::new(label)]];
-   ReplyMarkup::keyboad(keyboard)
+   let keyboard = KeyboardMarkup::new(keyboard)
    .resize_keyboard(true);
+
+   ReplyMarkup::Keyboard(keyboard)
 }
 
 
@@ -98,8 +100,10 @@ async fn start(state: StartState, cx: TransitionIn<AutoSend<Bot>>, _ans: String,
       vec![KeyboardButton::new(Command::Origin)]
    };
 
-   let markup = ReplyMarkup::keyboad(vec![commands])
+   let keyboard = KeyboardMarkup::new(vec![commands])
    .resize_keyboard(true);
+
+   let markup = ReplyMarkup::Keyboard(keyboard);
 
    let info = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
    let info = info + "Добро пожаловать. Выберите команду на кнопке внизу";

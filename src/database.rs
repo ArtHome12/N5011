@@ -56,7 +56,7 @@ pub async fn check_database() {
 
       let query = client.batch_execute("CREATE TABLE users (
          PRIMARY KEY (user_id),
-         user_id        INTEGER        NOT NULL,
+         user_id        BIGINT         NOT NULL,
          descr          VARCHAR(100)   NOT NULL,
          addr           VARCHAR(100)   NOT NULL,
          last_seen      INTEGER        NOT NULL
@@ -86,7 +86,7 @@ pub async fn check_database() {
 
 async fn load_user(id: i64) -> Option<User> {
    let client = DB.get().unwrap();
-   let query = client.query("SELECT descr, addr, last_seen FROM users WHERE user_id=$1::INTEGER", &[&id]).await;
+   let query = client.query("SELECT descr, addr, last_seen FROM users WHERE user_id=$1::BIGINT", &[&id]).await;
 
    match query {
       Ok(data) => {
@@ -110,7 +110,7 @@ async fn load_user(id: i64) -> Option<User> {
 
 pub async fn update_user_time(id: i64, time: i32) {
    let client = DB.get().unwrap();
-   let query = client.execute("UPDATE users SET last_seen = $1::INTEGER WHERE user_id = $2::INTEGER", &[&time, &id]).await;
+   let query = client.execute("UPDATE users SET last_seen = $1::INTEGER WHERE user_id = $2::BIGINT", &[&time, &id]).await;
 
    match query {
       Ok(1) => (),
@@ -121,7 +121,7 @@ pub async fn update_user_time(id: i64, time: i32) {
 
 pub async fn save_new_user(id: i64, time: i32, def_descr: &str) {
    let client = DB.get().unwrap();
-   let query = client.execute("INSERT INTO users (user_id, descr, last_seen) VALUES ($1::INTEGER, $2::VARCHAR(100), $3::INTEGER)", &[&id, &def_descr, &time]).await;
+   let query = client.execute("INSERT INTO users (user_id, descr, last_seen) VALUES ($1::BIGINT, $2::VARCHAR(100), $3::INTEGER)", &[&id, &def_descr, &time]).await;
 
    match query {
       Ok(1) => (),
@@ -139,7 +139,7 @@ pub async fn user_descr(id: i64) -> String {
 
 pub async fn update_user_descr(id: i64, descr: &str) {
    let client = DB.get().unwrap();
-   let query = client.execute("UPDATE users SET descr = $1::VARCHAR(100) WHERE user_id = $2::INTEGER", &[&descr, &id]).await;
+   let query = client.execute("UPDATE users SET descr = $1::VARCHAR(100) WHERE user_id = $2::BIGINT", &[&descr, &id]).await;
 
    match query {
       Ok(1) => (),

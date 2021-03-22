@@ -67,7 +67,7 @@ impl From<Command> for String {
 fn one_button_markup(label: &'static str) -> ReplyMarkup {
    let keyboard = vec![vec![KeyboardButton::new(label)]];
    ReplyMarkup::keyboad(keyboard)
-   // .resize_keyboard(true);
+   .resize_keyboard(true);
 }
 
 
@@ -98,14 +98,14 @@ async fn start(state: StartState, cx: TransitionIn<AutoSend<Bot>>, _ans: String,
       vec![KeyboardButton::new(Command::Origin)]
    };
 
-   let markup = ReplyMarkup::keyboad(vec![commands]);
+   let markup = ReplyMarkup::keyboad(vec![commands])
+   .resize_keyboard(true);
 
    let info = String::from(if state.restarted { "Извините, бот был перезапущен.\n" } else {""});
    let info = info + "Добро пожаловать. Выберите команду на кнопке внизу";
 
    cx.answer(info)
    .reply_markup(markup)
-   .send()
    .await?;
    next(CommandState { user_id, is_admin })
 }
@@ -135,8 +135,7 @@ async fn select_command(state: CommandState, cx: TransitionIn<AutoSend<Bot>>, an
 
          cx.answer(info)
          .reply_markup(one_button_markup("/"))
-         .send().
-         await?;
+         .await?;
 
          next(OriginState { state })
       }
@@ -146,8 +145,7 @@ async fn select_command(state: CommandState, cx: TransitionIn<AutoSend<Bot>>, an
 
          cx.answer(info)
          .reply_markup(one_button_markup("/"))
-         .send().
-         await?;
+         .await?;
 
          next(IntervalState { state })
       }
@@ -209,7 +207,6 @@ async fn interval(state: IntervalState, cx: TransitionIn<AutoSend<Bot>>, ans: St
 
    cx.answer(info)
    .reply_markup(one_button_markup("В начало"))
-   .send().
-   await?;
+   .await?;
    next(StartState { restarted: false })
 }

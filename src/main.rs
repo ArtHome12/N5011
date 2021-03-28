@@ -216,7 +216,8 @@ async fn is_admin(bot: & AutoSend<Bot>, chat_id: i64, user_id: i64) -> bool {
    .send()
    .await;
 
-   log::info!("is admin: {}", member.unwrap().kind.can_restrict_members().unwrap_or(true));
+   let res = member.unwrap().kind.can_restrict_members().unwrap_or(false);
+   log::info!("is admin: {}", res);
 
    // set::is_admin(user_id) || (
    //    member.is_ok()

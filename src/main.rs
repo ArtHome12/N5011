@@ -174,7 +174,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    } else {
       // Check moderate command
       let msg = cx.update.reply_to_message();
-      if set::is_admin(user_id) && text == "[+]" && msg.is_some() {
+      if text == "[+]" && msg.is_some() && is_admin(&cx.requester, chat_id, user_id).await {
 
          // Extract the author and restrict
          if let Some(from) = msg.unwrap().from() {
@@ -209,4 +209,18 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
 
       next(dialogue)
    }
+}
+
+async fn is_admin(bot: & AutoSend<Bot>, chat_id: i64, user_id: i64) -> bool {
+   let member = bot.get_chat_member(chat_id, user_id)
+   .send()
+   .await;
+
+   log::info!("is admin: {}", member.unwrap().kind.can_restrict_members().unwrap_or(false));
+
+   // set::is_admin(user_id) || (
+   //    member.is_ok()
+   //    && member.unwrap().kind.can_restrict_members().unwrap_or(false)
+   // )
+   false
 }

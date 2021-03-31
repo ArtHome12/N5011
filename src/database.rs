@@ -33,8 +33,13 @@ pub async fn announcement(user_id: i64, time: i32) -> AnnouncementResult {
 
    match load_user(user_id).await {
       Some(user) => {
-         // If enough time has passed and origin was changed
-         if (time - user.last_seen) as u32 > set::interval() && user.addr.is_some() {
+         // No info - no announcement
+         if user.addr.is_none() {
+            return Err(AnnouncementError::NoneAddr);
+         }
+
+         // If enough time has passed
+         if (time - user.last_seen) as u32 > set::interval() {
             update_user_time(user_id, time).await;
             Ok(format!("{} {}", user.addr.unwrap(), user.descr.unwrap_or_default()))
          } else {

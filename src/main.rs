@@ -227,12 +227,13 @@ struct Node {
 impl PartialOrd for Node {
    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
       // Without point at first
-      log::info!("here1");
-      if !self.addr.contains(".") && other.addr.contains(".") {
-         log::info!("here2");
+      let a = self.addr.contains(".");
+      let b = other.addr.contains(".");
+      if !a && b {
          Some(Ordering::Less)
+      } else if a && !b {
+         Some(Ordering::Greater)
       } else {
-         log::info!("here3");
          self.addr.partial_cmp(&other.addr)
       }
    }
@@ -261,7 +262,7 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
       return String::from("Ошибка, пустой нодлист");
    };
 
-   nodelist.sort_by(|a, b| Node::cmp(a, b));
+   nodelist.sort();
 
    let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
    addrs.sort();
@@ -277,8 +278,6 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
 }
 
 async fn request_addr(user_id: i64) {
-   log::info!("request_addr(): {}", user_id);
-
    let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
 
    let req = reqwest::get(url)

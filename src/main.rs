@@ -228,7 +228,7 @@ impl PartialOrd for Node {
    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
       // Without point at first
       if self.addr.contains(".") {
-         Some(Ordering::Greater)
+         Some(Ordering::Less)
       } else {
          self.addr.partial_cmp(&other.addr)
       }
@@ -252,6 +252,12 @@ impl Ord for Node {
 type Nodelist = Vec<Node>;
 
 fn from_nodelist(mut nodelist: Nodelist) -> String {
+   let name = if nodelist.len() > 0 {
+      nodelist[0].name.clone()
+   } else {
+      return String::from("Ошибка, пустой нодлист");
+   };
+
    nodelist.sort();
 
    let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
@@ -264,7 +270,7 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
    let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
    addrs.append(&mut suffix);
 
-   addrs.iter().map(|s| format!(", {}", s)).collect()
+   addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
 }
 
 async fn request_addr(user_id: i64) {

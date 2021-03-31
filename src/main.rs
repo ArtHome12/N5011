@@ -264,7 +264,7 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
    let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
    addrs.append(&mut suffix);
 
-   addrs.iter().map(|s| s.clone()).collect()
+   addrs.iter().map(|s| format!(", {}", s)).collect()
 }
 
 async fn request_addr(user_id: i64) {

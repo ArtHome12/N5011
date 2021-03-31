@@ -214,7 +214,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize)]
 struct Node {
    pub addr: String,
    pub name: String,
@@ -226,11 +226,17 @@ struct Node {
 type Nodelist = Vec<Node>;
 
 fn from_nodelist(nodelist: Nodelist) -> String {
-   let addr = nodelist.iter().fold(
-      nodelist[0].name.clone(), 
-      |acc, rec| format!("{}, {}", acc, &rec.addr)
-   );
-   addr
+   let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
+   addrs.sort();
+
+   // Clip point .1 afer the node
+   addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
+
+   // Remove repeated prefix
+   let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
+   addrs.append(&mut suffix);
+
+   addrs.iter().map(|s| s.clone()).collect()
 }
 
 async fn request_addr(user_id: i64) {

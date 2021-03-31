@@ -227,9 +227,12 @@ struct Node {
 impl PartialOrd for Node {
    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
       // Without point at first
+      log::info!("here1");
       if !self.addr.contains(".") && other.addr.contains(".") {
+         log::info!("here2");
          Some(Ordering::Less)
       } else {
+         log::info!("here3");
          self.addr.partial_cmp(&other.addr)
       }
    }

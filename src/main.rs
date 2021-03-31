@@ -225,6 +225,14 @@ struct Node {
 
 type Nodelist = Vec<Node>;
 
+fn from_nodelist(nodelist: Nodelist) -> String {
+   let addr = nodelist.iter().fold(
+      nodelist[0].name.clone(), 
+      |acc, rec| format!("{}, {}", acc, &rec.addr)
+   );
+   addr
+}
+
 async fn request_addr(user_id: i64) {
    log::info!("request_addr(): {}", user_id);
 
@@ -237,7 +245,7 @@ async fn request_addr(user_id: i64) {
       Ok(req) => {
          let body = req.json::<Nodelist>().await;
          match body {
-            Ok(nodelist) => log::info!("addr = {}, name = {}", nodelist[0].addr, nodelist[0].name),
+            Ok(nodelist) => log::info!("{}", from_nodelist(nodelist)),
             Err(e) => log::info!("body error {}", e),
          };
       }

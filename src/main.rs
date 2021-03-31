@@ -195,7 +195,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
             if let Err(e) = res.await {
                log::info!("Error main handle_message 2 (): {}", e);
             }
-      }
+         }
       }
 
       // Make announcement in chat if needs
@@ -215,6 +215,22 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
 
 async fn request_addr(user_id: i64) {
    log::info!("request_addr(): {}", user_id);
+
+   let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
+
+   let req = reqwest::get(url)
+   .await;
+
+   match req {
+      Ok(req) => {
+         let body = req.text().await;
+         match body {
+            Ok(body) => log::info!("body = {:?}", body),
+            Err(e) => log::info!("body error {}", e),
+         };
+      }
+      Err(e) => log::info!("req error {}", e),
+   }
 }
 
 async fn is_admin(bot: & AutoSend<Bot>, chat_id: i64, user_id: i64) -> bool {

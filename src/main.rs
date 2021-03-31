@@ -149,14 +149,11 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    // Collect info about update
    let user = user.unwrap();
    let user_id = user.id;
-   let def_descr = user.username.clone().unwrap_or_default();
-   let def_descr = if def_descr.len() > 0 {String::from(" @") + &def_descr} else {String::default()};
-   let def_descr = user.full_name() + &def_descr;
    let time = cx.update.date;
    let text = String::from(cx.update.text().unwrap_or_default());
 
    // Collect information and guaranteed to save the user in the database
-   let announcement = db::announcement(user_id, time, &def_descr).await;
+   let announcement = db::announcement(user_id, time).await;
 
    // Negative for chats, positive personal
    let chat_id = cx.update.chat_id();
@@ -202,11 +199,20 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
       }
 
       // Make announcement in chat if needs
-      if let Some(announcement) = announcement {
-         cx.reply_to(announcement)
-         .await?;
+      match announcement {
+         Ok(s) => {
+            if let Err(e) = cx.reply_to(s).await {
+               log::info!("Error main handle_message 3 (): {}", e);
+            }
+         }
+         Err(db::AnnouncementError::NoneAddr) => request_addr(user_id).await,
+         _ => (),
       }
 
       next(dialogue)
    }
+}
+
+async fn request_addr(user_id: i64) {
+   log::info!("request_addr(): {}", user_id);
 }

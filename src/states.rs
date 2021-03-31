@@ -135,7 +135,7 @@ async fn select_command(state: CommandState, cx: TransitionIn<AutoSend<Bot>>, an
       Command::Origin => {
          // Collect info about update
          let info = db::user_descr(state.user_id).await;
-         let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите строку вида\n2:5011/102 город, ФИО\n Для отказа нажмите /", info);
+         let info = format!("Ваш текущий ориджин\n{}\nПожалуйста, введите текст для отображения после информации нодлиста\n Для отказа нажмите /", info);
 
          cx.answer(info)
          .reply_markup(one_button_markup("/"))

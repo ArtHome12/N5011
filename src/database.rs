@@ -21,23 +21,30 @@ struct User {
    last_seen: i32,
 }
 
+pub enum AnnouncementError {
+   SmallInterval, // too little time has passed since the last call
+   NoneAddr, // no information and must be requested from an external source
+}
+
+pub type AnnouncementResult = Result<String, AnnouncementError>;
+
 // Announcement text for the user, if necessary
-pub async fn announcement(user_id: i64, time: i32, def_descr: &str) -> Option<String> {
+pub async fn announcement(user_id: i64, time: i32) -> AnnouncementResult {
 
    match load_user(user_id).await {
       Some(user) => {
          // If enough time has passed and origin was changed
-         if (time - user.last_seen) as u32 > set::interval() && user.descr != def_descr {
+         if (time - user.last_seen) as u32 > set::interval() && user.addr.is_some() {
             update_user_time(user_id, time).await;
-            Some(user.descr)
+            Ok(format!("{} {}", user.addr.unwrap(), user.descr))
          } else {
-            None
+            Err(AnnouncementError::SmallInterval)
          }
       }
       None => {
          // Remember a new user
-         save_new_user(user_id, time, def_descr).await;
-         None
+         save_new_user(user_id, time).await;
+         Err(AnnouncementError::NoneAddr)
       }
    }
 }
@@ -119,9 +126,9 @@ pub async fn update_user_time(id: i64, time: i32) {
    }
 }
 
-pub async fn save_new_user(id: i64, time: i32, def_descr: &str) {
+pub async fn save_new_user(id: i64, time: i32) {
    let client = DB.get().unwrap();
-   let query = client.execute("INSERT INTO users (user_id, descr, last_seen) VALUES ($1::BIGINT, $2::VARCHAR(100), $3::INTEGER)", &[&id, &def_descr, &time]).await;
+   let query = client.execute("INSERT INTO users (user_id, last_seen) VALUES ($1::BIGINT, $2::INTEGER)", &[&id, &time]).await;
 
    match query {
       Ok(1) => (),

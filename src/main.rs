@@ -17,6 +17,7 @@ use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
+use serde::Deserialize;
 
 use crate::states::Dialogue;
 
@@ -213,6 +214,17 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    }
 }
 
+#[derive(Deserialize)]
+struct Node {
+   pub addr: String,
+   pub name: String,
+   pub telegram_name: String,
+   pub telegram_login: String,
+   pub user_id: i64,
+}
+
+type Nodelist = Vec<Node>;
+
 async fn request_addr(user_id: i64) {
    log::info!("request_addr(): {}", user_id);
 
@@ -223,9 +235,9 @@ async fn request_addr(user_id: i64) {
 
    match req {
       Ok(req) => {
-         let body = req.text().await;
+         let body = req.json::<Nodelist>().await;
          match body {
-            Ok(body) => log::info!("body = {:?}", body),
+            Ok(nodelist) => log::info!("addr = {}, name = {}", nodelist[0].addr, nodelist[0].name),
             Err(e) => log::info!("body error {}", e),
          };
       }

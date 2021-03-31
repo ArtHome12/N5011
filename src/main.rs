@@ -258,7 +258,7 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
       return String::from("Ошибка, пустой нодлист");
    };
 
-   nodelist.sort();
+   nodelist.sort_by(|a, b| Node::cmp(a, b));
 
    let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
    addrs.sort();

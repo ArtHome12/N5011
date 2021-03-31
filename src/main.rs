@@ -265,7 +265,6 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
    nodelist.sort();
 
    let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
-   addrs.sort();
 
    // Clip point .1 afer the node
    addrs.dedup_by(|a, b| a.starts_with(b.as_str()));

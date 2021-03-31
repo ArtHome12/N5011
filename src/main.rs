@@ -18,6 +18,7 @@ use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
 use serde::Deserialize;
+use std::cmp::Ordering;
 
 use crate::states::Dialogue;
 
@@ -214,7 +215,7 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
    }
 }
 
-#[derive(Debug, Eq, Ord, PartialEq, PartialOrd, Deserialize)]
+#[derive(Deserialize)]
 struct Node {
    pub addr: String,
    pub name: String,
@@ -223,9 +224,36 @@ struct Node {
    pub user_id: i64,
 }
 
+impl PartialOrd for Node {
+   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+      // Without point at first
+      if self.addr.contains(".") {
+         Some(Ordering::Greater)
+      } else {
+         self.addr.partial_cmp(&other.addr)
+      }
+   }
+}
+
+impl PartialEq for Node {
+   fn eq(&self, other: &Self) -> bool {
+      self.addr == other.addr
+   }
+}
+
+impl Eq for Node {}
+
+impl Ord for Node {
+   fn cmp(&self, other: &Self) -> Ordering {
+      self.partial_cmp(other).unwrap()
+   }
+}
+
 type Nodelist = Vec<Node>;
 
-fn from_nodelist(nodelist: Nodelist) -> String {
+fn from_nodelist(mut nodelist: Nodelist) -> String {
+   nodelist.sort();
+
    let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
    addrs.sort();
 

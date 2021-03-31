@@ -16,7 +16,7 @@ pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();
 
 struct User {
    // id: i32,
-   descr: String,
+   descr: Option<String>,
    addr: Option<String>,
    last_seen: i32,
 }
@@ -36,7 +36,7 @@ pub async fn announcement(user_id: i64, time: i32) -> AnnouncementResult {
          // If enough time has passed and origin was changed
          if (time - user.last_seen) as u32 > set::interval() && user.addr.is_some() {
             update_user_time(user_id, time).await;
-            Ok(format!("{} {}", user.addr.unwrap(), user.descr))
+            Ok(format!("{} {}", user.addr.unwrap(), user.descr.unwrap_or_default()))
          } else {
             Err(AnnouncementError::SmallInterval)
          }
@@ -64,8 +64,8 @@ pub async fn check_database() {
       let query = client.batch_execute("CREATE TABLE users (
          PRIMARY KEY (user_id),
          user_id        BIGINT         NOT NULL,
-         descr          VARCHAR(100)   NOT NULL,
-         addr           VARCHAR(100)   NOT NULL,
+         descr          VARCHAR(100),
+         addr           VARCHAR(100),
          last_seen      INTEGER        NOT NULL
       );
 
@@ -139,7 +139,7 @@ pub async fn save_new_user(id: i64, time: i32) {
 
 pub async fn user_descr(id: i64) -> String {
    match load_user(id).await {
-      Some(user) => if user.addr.is_some() {format!("{}\n{}", user.addr.unwrap(), user.descr)} else {user.descr},
+      Some(user) => if user.addr.is_some() {format!("{}\n{}", user.addr.unwrap(), user.descr.unwrap_or_default())} else {user.descr.unwrap_or_default()},
       None => String::default(),
    }
 }

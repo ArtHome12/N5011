@@ -8,6 +8,8 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use once_cell::sync::OnceCell;
+use serde::Deserialize;
+use std::cmp::Ordering;
 
 use crate::settings as set;
 
@@ -21,35 +23,33 @@ struct User {
    last_seen: i32,
 }
 
-pub enum AnnouncementError {
-   SmallInterval, // too little time has passed since the last call
-   NoneAddr, // no information and must be requested from an external source
-}
-
-pub type AnnouncementResult = Result<String, AnnouncementError>;
-
 // Announcement text for the user, if necessary
-pub async fn announcement(user_id: i64, time: i32) -> AnnouncementResult {
+pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
 
    match load_user(user_id).await {
       Some(user) => {
          // No info - no announcement
          if user.addr.is_none() {
-            return Err(AnnouncementError::NoneAddr);
+            return None;
          }
 
          // If enough time has passed
          if (time - user.last_seen) as u32 > set::interval() {
             update_user_time(user_id, time).await;
-            Ok(format!("{} {}", user.addr.unwrap(), user.descr.unwrap_or_default()))
+
+            // Ask about updates
+            tokio::spawn(request_addr(user_id));
+            
+            Some(format!("{} {}", user.addr.unwrap(), user.descr.unwrap_or_default()))
          } else {
-            Err(AnnouncementError::SmallInterval)
+            // To small time elapsed
+            None
          }
       }
       None => {
          // Remember a new user
          save_new_user(user_id, time).await;
-         Err(AnnouncementError::NoneAddr)
+         None
       }
    }
 }
@@ -171,3 +171,82 @@ pub async fn update_interval(i: i32) -> Result<(), ()> {
    }
 }
 
+#[derive(Deserialize)]
+struct Node {
+   pub addr: String,
+   pub name: String,
+   pub telegram_name: String,
+   pub telegram_login: String,
+   pub user_id: i64,
+}
+
+impl PartialOrd for Node {
+   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+      // Without point at first
+      let a = self.addr.contains(".");
+      let b = other.addr.contains(".");
+      if !a && b {
+         Some(Ordering::Less)
+      } else if a && !b {
+         Some(Ordering::Greater)
+      } else {
+         self.addr.partial_cmp(&other.addr)
+      }
+   }
+}
+
+impl PartialEq for Node {
+   fn eq(&self, other: &Self) -> bool {
+      self.addr == other.addr
+   }
+}
+
+impl Eq for Node {}
+
+impl Ord for Node {
+   fn cmp(&self, other: &Self) -> Ordering {
+      self.partial_cmp(other).unwrap()
+   }
+}
+
+type Nodelist = Vec<Node>;
+
+fn from_nodelist(mut nodelist: Nodelist) -> String {
+   let name = if nodelist.len() > 0 {
+      nodelist[0].name.clone()
+   } else {
+      return String::from("Ошибка, пустой нодлист");
+   };
+
+   nodelist.sort();
+
+   let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
+   addrs.sort();
+
+   // Clip point .1 afer the node
+   addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
+
+   // Remove repeated prefix
+   let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
+   addrs.append(&mut suffix);
+
+   addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
+}
+
+async fn request_addr(user_id: i64) {
+   let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
+
+   let req = reqwest::get(url)
+   .await;
+
+   match req {
+      Ok(req) => {
+         let body = req.json::<Nodelist>().await;
+         match body {
+            Ok(nodelist) => log::info!("{}", from_nodelist(nodelist)),
+            Err(e) => log::info!("body error {}", e),
+         };
+      }
+      Err(e) => log::info!("req error {}", e),
+   }
+}

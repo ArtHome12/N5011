@@ -17,8 +17,6 @@ use warp::Filter;
 use reqwest::StatusCode;
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
-use serde::Deserialize;
-use std::cmp::Ordering;
 
 use crate::states::Dialogue;
 
@@ -201,99 +199,16 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
       }
 
       // Make announcement in chat if needs
-      match announcement {
-         Ok(s) => {
-            if let Err(e) = cx.reply_to(s).await {
-               log::info!("Error main handle_message 3 (): {}", e);
-            }
+      if let Some(announcement) = announcement {
+         if let Err(e) = cx.reply_to(announcement).await {
+            log::info!("Error main handle_message 3 (): {}", e);
          }
-         Err(db::AnnouncementError::NoneAddr) => request_addr(user_id).await,
-         _ => (),
       }
 
       next(dialogue)
    }
 }
 
-#[derive(Deserialize)]
-struct Node {
-   pub addr: String,
-   pub name: String,
-   pub telegram_name: String,
-   pub telegram_login: String,
-   pub user_id: i64,
-}
-
-impl PartialOrd for Node {
-   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-      // Without point at first
-      let a = self.addr.contains(".");
-      let b = other.addr.contains(".");
-      if !a && b {
-         Some(Ordering::Less)
-      } else if a && !b {
-         Some(Ordering::Greater)
-      } else {
-         self.addr.partial_cmp(&other.addr)
-      }
-   }
-}
-
-impl PartialEq for Node {
-   fn eq(&self, other: &Self) -> bool {
-      self.addr == other.addr
-   }
-}
-
-impl Eq for Node {}
-
-impl Ord for Node {
-   fn cmp(&self, other: &Self) -> Ordering {
-      self.partial_cmp(other).unwrap()
-   }
-}
-
-type Nodelist = Vec<Node>;
-
-fn from_nodelist(mut nodelist: Nodelist) -> String {
-   let name = if nodelist.len() > 0 {
-      nodelist[0].name.clone()
-   } else {
-      return String::from("Ошибка, пустой нодлист");
-   };
-
-   nodelist.sort();
-
-   let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
-   addrs.sort();
-
-   // Clip point .1 afer the node
-   addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
-
-   // Remove repeated prefix
-   let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
-   addrs.append(&mut suffix);
-
-   addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
-}
-
-async fn request_addr(user_id: i64) {
-   let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
-
-   let req = reqwest::get(url)
-   .await;
-
-   match req {
-      Ok(req) => {
-         let body = req.json::<Nodelist>().await;
-         match body {
-            Ok(nodelist) => log::info!("{}", from_nodelist(nodelist)),
-            Err(e) => log::info!("body error {}", e),
-         };
-      }
-      Err(e) => log::info!("req error {}", e),
-   }
-}
 
 async fn is_admin(bot: & AutoSend<Bot>, chat_id: i64, user_id: i64) -> bool {
    let member = bot.get_chat_member(chat_id, user_id)

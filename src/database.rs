@@ -250,3 +250,14 @@ async fn request_addr(user_id: i64) {
       Err(e) => log::info!("req error {}", e),
    }
 }
+pub async fn update_user_addr(id: i64, addr: &str) {
+   let client = DB.get().unwrap();
+   let query = client.execute("UPDATE users SET addr = $1::VARCHAR(100) WHERE user_id = $2::BIGINT", &[&addr, &id]).await;
+
+   match query {
+      Ok(1) => (),
+      Ok(n) => log::info!("update_user_addr error: {}, {} - updated {} records", id, addr, n),
+      Err(e) => log::info!("update_user_addr error: {}, {} - {}", id, addr, e),
+   }
+}
+

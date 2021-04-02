@@ -243,7 +243,7 @@ async fn request_addr(user_id: i64) {
       Ok(req) => {
          let body = req.json::<Nodelist>().await;
          match body {
-            Ok(nodelist) => log::info!("{}", from_nodelist(nodelist)),
+            Ok(nodelist) => update_user_addr(user_id, &from_nodelist(nodelist)).await,
             Err(e) => log::info!("body error {}", e),
          };
       }

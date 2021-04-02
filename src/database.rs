@@ -10,6 +10,7 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use std::cmp::Ordering;
+use reqwest::Client;
 
 use crate::settings as set;
 
@@ -236,14 +237,21 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
 async fn request_addr(user_id: i64) {
    let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
 
-   let req = reqwest::get(url)
+   let req = Client::new()
+   .get(url)
+   .basic_auth("arthome", Some("emminet"))
+   .send()
    .await;
 
    match req {
       Ok(req) => {
          let body = req.json::<Nodelist>().await;
          match body {
-            Ok(nodelist) => update_user_addr(user_id, &from_nodelist(nodelist)).await,
+            Ok(nodelist) => {
+               let s = &from_nodelist(nodelist);
+               log::info!("request_addr updated for {}: {}", user_id, s);
+               update_user_addr(user_id, s).await
+            },
             Err(e) => log::info!("body error {}", e),
          };
       }

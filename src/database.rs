@@ -18,10 +18,10 @@ use crate::settings as set;
 pub static DB: OnceCell<tokio_postgres::Client> = OnceCell::new();
 
 struct User {
-   // id: i32,
    descr: Option<String>,
    addr: Option<String>,
    last_seen: i32,
+   num_short_announcements: i32,
 }
 
 // Announcement text for the user, if necessary
@@ -29,19 +29,22 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
 
    match load_user(user_id).await {
       Some(user) => {
-         // No info - no announcement
-         if user.addr.is_none() {
-            return None;
-         }
-
          // If enough time has passed
          if (time - user.last_seen) as u32 > set::interval() {
             update_user_time(user_id, time).await;
 
+            let detail = if user.num_short_announcements >= 12 {
+               reset_num_short_announcements(user_id).await;
+               Detail::All
+            } else {
+               Detail::OnlyFirst
+            };
+
             // Ask about updates
-            tokio::spawn(request_addr(user_id));
+            tokio::spawn(request_addr(user_id, detail));
             
-            Some(format!("{} {}", user.addr.unwrap(), user.descr.unwrap_or_default()))
+            let addr = user.addr.unwrap_or(String::from("БОФА"));
+            Some(format!("{} {}", addr, user.descr.unwrap_or_default()))
          } else {
             // To small time elapsed
             None
@@ -72,7 +75,8 @@ pub async fn check_database() {
          user_id        BIGINT         NOT NULL,
          descr          VARCHAR(100),
          addr           VARCHAR(100),
-         last_seen      INTEGER        NOT NULL
+         last_seen      INTEGER        NOT NULL,
+         num_short_announcements INTEGER NOT NULL
       );
 
       CREATE TABLE settings (announcement_delta INTEGER);
@@ -99,7 +103,7 @@ pub async fn check_database() {
 
 async fn load_user(id: i64) -> Option<User> {
    let client = DB.get().unwrap();
-   let query = client.query("SELECT descr, addr, last_seen FROM users WHERE user_id=$1::BIGINT", &[&id]).await;
+   let query = client.query("SELECT descr, addr, last_seen, num_short_announcements FROM users WHERE user_id=$1::BIGINT", &[&id]).await;
 
    match query {
       Ok(data) => {
@@ -109,6 +113,7 @@ async fn load_user(id: i64) -> Option<User> {
                descr: data[0].get(0),
                addr: data[0].get(1),
                last_seen: data[0].get(2),
+               num_short_announcements: data[0].get(3),
             }),
             _ => None,
          }
@@ -123,7 +128,7 @@ async fn load_user(id: i64) -> Option<User> {
 
 pub async fn update_user_time(id: i64, time: i32) {
    let client = DB.get().unwrap();
-   let query = client.execute("UPDATE users SET last_seen = $1::INTEGER WHERE user_id = $2::BIGINT", &[&time, &id]).await;
+   let query = client.execute("UPDATE users SET last_seen = $1::INTEGER, num_short_announcements = num_short_announcements + 1 WHERE user_id = $2::BIGINT", &[&time, &id]).await;
 
    match query {
       Ok(1) => (),
@@ -132,9 +137,20 @@ pub async fn update_user_time(id: i64, time: i32) {
    }
 }
 
+pub async fn reset_num_short_announcements(id: i64) {
+   let client = DB.get().unwrap();
+   let query = client.execute("UPDATE users SET num_short_announcements = 0 WHERE user_id = $1::BIGINT", &[&id]).await;
+
+   match query {
+      Ok(1) => (),
+      Ok(n) => log::info!("reset_num_short_announcements error: {} - updated {} records", id, n),
+      Err(e) => log::info!("reset_num_short_announcements error: {} - {}", id, e),
+   }
+}
+
 pub async fn save_new_user(id: i64, time: i32) {
    let client = DB.get().unwrap();
-   let query = client.execute("INSERT INTO users (user_id, last_seen) VALUES ($1::BIGINT, $2::INTEGER)", &[&id, &time]).await;
+   let query = client.execute("INSERT INTO users (user_id, last_seen, num_short_announcements) VALUES ($1::BIGINT, $2::INTEGER, 0)", &[&id, &time]).await;
 
    match query {
       Ok(1) => (),
@@ -181,18 +197,23 @@ struct Node {
    pub user_id: i64,
 }
 
+impl Node {
+   pub fn addr_struct(&self) -> (usize, usize) {
+      let v: Vec<&str> = self.addr.split(&['/', '.'][..]).collect();
+      match v.len() {
+         2 => (v[1].parse().unwrap_or(0), 0),
+         3 => (v[1].parse().unwrap_or(0), v[3].parse().unwrap_or(0)),
+         _ => (0, 0)
+      }
+   }
+}
+
 impl PartialOrd for Node {
    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-      // Without point at first
-      let a = self.addr.contains(".");
-      let b = other.addr.contains(".");
-      if !a && b {
-         Some(Ordering::Less)
-      } else if a && !b {
-         Some(Ordering::Greater)
-      } else {
-         self.addr.partial_cmp(&other.addr)
-      }
+      // Sort by node number and point number
+      let a = self.addr_struct();
+      let b = other.addr_struct();
+      a.partial_cmp(&b)
    }
 }
 
@@ -212,7 +233,12 @@ impl Ord for Node {
 
 type Nodelist = Vec<Node>;
 
-fn from_nodelist(mut nodelist: Nodelist) -> String {
+enum Detail {
+   OnlyFirst,
+   All,
+}
+
+fn from_nodelist(mut nodelist: Nodelist, detail: Detail) -> String {
    let name = if nodelist.len() > 0 {
       nodelist[0].name.clone()
    } else {
@@ -221,20 +247,24 @@ fn from_nodelist(mut nodelist: Nodelist) -> String {
 
    nodelist.sort();
 
-   let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
-   addrs.sort();
+   match detail {
+      Detail::OnlyFirst => nodelist[0].addr.clone(),
+      Detail::All => {
+         let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
 
-   // Clip point .1 afer the node
-   addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
-
-   // Remove repeated prefix
-   let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
-   addrs.append(&mut suffix);
-
-   addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
+         // Clip point .1 afer the node
+         addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
+      
+         // Remove repeated prefix
+         let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
+         addrs.append(&mut suffix);
+      
+         addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
+      }
+   }
 }
 
-async fn request_addr(user_id: i64) {
+async fn request_addr(user_id: i64, detail: Detail) {
    let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
 
    let req = Client::new()
@@ -248,7 +278,7 @@ async fn request_addr(user_id: i64) {
          let body = req.json::<Nodelist>().await;
          match body {
             Ok(nodelist) => {
-               let s = &from_nodelist(nodelist);
+               let s = &from_nodelist(nodelist, detail);
                log::info!("request_addr updated for {}: {}", user_id, s);
                update_user_addr(user_id, s).await
             },

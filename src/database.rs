@@ -202,7 +202,7 @@ impl Node {
       let v: Vec<&str> = self.addr.split(&['/', '.'][..]).collect();
       match v.len() {
          2 => (v[1].parse().unwrap_or(0), 0),
-         3 => (v[1].parse().unwrap_or(0), v[3].parse().unwrap_or(0)),
+         3 => (v[1].parse().unwrap_or(0), v[2].parse().unwrap_or(0)),
          _ => (0, 0)
       }
    }

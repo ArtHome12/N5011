@@ -33,17 +33,16 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
          if (time - user.last_seen) as u32 > set::interval() {
             update_user_time(user_id, time).await;
 
-            let detail = if user.num_short_announcements >= 12 {
+            let mut addr = user.addr.unwrap_or(String::from("БОФА"));
+
+            if user.num_short_announcements >= 12 {
+               addr = addr.split(", ").take(2).collect();
                reset_num_short_announcements(user_id).await;
-               Detail::All
-            } else {
-               Detail::OnlyFirst
             };
 
             // Ask about updates
-            tokio::spawn(request_addr(user_id, detail));
+            tokio::spawn(request_addr(user_id));
             
-            let addr = user.addr.unwrap_or(String::from("БОФА"));
             Some(format!("{} {}", addr, user.descr.unwrap_or_default()))
          } else {
             // To small time elapsed
@@ -233,12 +232,7 @@ impl Ord for Node {
 
 type Nodelist = Vec<Node>;
 
-enum Detail {
-   OnlyFirst,
-   All,
-}
-
-fn from_nodelist(mut nodelist: Nodelist, detail: Detail) -> String {
+fn from_nodelist(mut nodelist: Nodelist) -> String {
    let name = if nodelist.len() > 0 {
       nodelist[0].name.clone()
    } else {
@@ -247,24 +241,19 @@ fn from_nodelist(mut nodelist: Nodelist, detail: Detail) -> String {
 
    nodelist.sort();
 
-   match detail {
-      Detail::OnlyFirst => nodelist[0].addr.clone(),
-      Detail::All => {
-         let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
+   let mut addrs = nodelist.iter().map(|i| i.addr.clone()).collect::<Vec<String>>();
 
-         // Clip point .1 afer the node
-         addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
-      
-         // Remove repeated prefix
-         let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
-         addrs.append(&mut suffix);
-      
-         addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
-      }
-   }
+   // Clip point .1 afer the node
+   addrs.dedup_by(|a, b| a.starts_with(b.as_str()));
+
+   // Remove repeated prefix
+   let mut suffix = addrs.split_off(1).iter().map(|s| s.replace("2:5011/", "/")).collect::<Vec<String>>();
+   addrs.append(&mut suffix);
+
+   addrs.iter().fold(name, |acc, s| format!("{}, {}", acc, s))
 }
 
-async fn request_addr(user_id: i64, detail: Detail) {
+async fn request_addr(user_id: i64) {
    let url = format!("https://guestl.info/grfidobot/api/v1/users/{}", user_id);
 
    let req = Client::new()
@@ -278,7 +267,7 @@ async fn request_addr(user_id: i64, detail: Detail) {
          let body = req.json::<Nodelist>().await;
          match body {
             Ok(nodelist) => {
-               let s = &from_nodelist(nodelist, detail);
+               let s = &from_nodelist(nodelist);
                log::info!("request_addr updated for {}: {}", user_id, s);
                update_user_addr(user_id, s).await
             },

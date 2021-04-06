@@ -36,8 +36,9 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
             let mut addr = user.addr.unwrap_or(String::from("БОФА"));
 
             if user.num_short_announcements >= 12 {
-               addr = addr.split(", ").take(2).collect();
                reset_num_short_announcements(user_id).await;
+            } else {
+               addr = addr.split(",").take(2).collect();
             };
 
             // Ask about updates

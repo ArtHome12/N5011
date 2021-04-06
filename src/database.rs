@@ -33,7 +33,7 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
          if (time - user.last_seen) as u32 > set::interval() {
             update_user_time(user_id, time).await;
 
-            let mut addr = user.addr.unwrap_or(String::from("БОФА"));
+            let mut addr = user.addr.unwrap_or(String::default());
 
             if user.num_short_announcements >= 12 {
                reset_num_short_announcements(user_id).await;
@@ -44,7 +44,13 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
             // Ask about updates
             tokio::spawn(request_addr(user_id));
             
-            Some(format!("{} {}", addr, user.descr.unwrap_or_default()))
+            let res = if addr == "" {
+               format!("БОФА {}", user.descr.unwrap_or_default())
+            } else {
+               format!("{} {}", addr, user.descr.unwrap_or_default())
+            };
+
+            Some(res)
          } else {
             // To small time elapsed
             None

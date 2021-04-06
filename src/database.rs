@@ -192,8 +192,8 @@ pub async fn update_interval(i: i32) -> Result<(), ()> {
 struct Node {
    pub addr: String,
    pub name: String,
-   pub telegram_name: String,
-   pub telegram_login: String,
+   pub telegram_name: Option<String>,
+   pub telegram_login: Option<String>,
    pub user_id: i64,
 }
 
@@ -272,10 +272,10 @@ async fn request_addr(user_id: i64) {
                log::info!("request_addr updated for {}: {}", user_id, s);
                update_user_addr(user_id, s).await
             },
-            Err(e) => log::info!("body error {}", e),
+            Err(e) => log::info!("body error for {}: {}", user_id, e),
          };
       }
-      Err(e) => log::info!("req error {}", e),
+      Err(e) => log::info!("req error for {}: {}", user_id, e),
    }
 }
 pub async fn update_user_addr(id: i64, addr: &str) {

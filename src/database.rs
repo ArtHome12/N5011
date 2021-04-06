@@ -213,7 +213,13 @@ impl PartialOrd for Node {
       // Sort by node number and point number
       let a = self.addr_struct();
       let b = other.addr_struct();
-      a.partial_cmp(&b)
+      if a.1 == 0 && b.1 > 0 {
+         Some(Ordering::Less)
+      } else if a.1 > 0 && b.1 == 0 {
+         Some(Ordering::Greater)
+      } else {
+         a.partial_cmp(&b)
+      }
    }
 }
 

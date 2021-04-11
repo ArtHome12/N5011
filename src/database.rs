@@ -45,7 +45,7 @@ pub async fn announcement(user_id: i64, time: i32) -> Option<String> {
             tokio::spawn(request_addr(user_id));
             
             let res = if addr == "" {
-               format!("БОФА {}", user.descr.unwrap_or_default())
+               user.descr.unwrap_or(String::from("БОФА"))
             } else {
                format!("{} {}", addr, user.descr.unwrap_or_default())
             };

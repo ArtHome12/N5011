@@ -8,15 +8,17 @@ Copyright (c) 2020 by Artem Khomenko _mag12@yahoo.com.
 =============================================================================== */
 
 use std::{convert::Infallible, env, net::SocketAddr};
-use teloxide::{prelude::*, dispatching::update_listeners, };
-use teloxide::types::ChatPermissions;
-
+use teloxide::{
+   prelude::*, types::ChatPermissions,
+   dispatching::{update_listeners::{self, StatefulListener}, stop_token::AsyncStopToken}
+};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::Filter;
-use reqwest::StatusCode;
+use reqwest::{StatusCode, Url};
 use native_tls::{TlsConnector};
 use postgres_native_tls::MakeTlsConnector;
+use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 
 use crate::states::Dialogue;
 
@@ -43,7 +45,8 @@ pub async fn webhook<'a>(bot: AutoSend<Bot>) -> impl update_listeners::UpdateLis
    // Heroku host example .: "heroku-ping-pong-bot.herokuapp.com"
    let host = env::var("HOST").expect("have HOST env variable");
    let path = format!("bot{}", teloxide_token);
-   let url = format!("https://{}/{}", host, path);
+   let url =  Url::parse(&format!("https://{}/{}", host, path))
+   .unwrap();
 
    bot.set_webhook(url).await.expect("Cannot setup a webhook");
 
@@ -74,11 +77,21 @@ pub async fn webhook<'a>(bot: AutoSend<Bot>) -> impl update_listeners::UpdateLis
       })
       .recover(handle_rejection);
 
-   let serve = warp::serve(server);
+   let (stop_token, stop_flag) = AsyncStopToken::new_pair();
 
-   let address = format!("0.0.0.0:{}", port);
-   tokio::spawn(serve.run(address.parse::<SocketAddr>().unwrap()));
-   UnboundedReceiverStream::new(rx)
+   let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+   let server = warp::serve(server);
+   let (_addr, fut) = server.bind_with_graceful_shutdown(addr, stop_flag);
+
+   // You might want to use serve.key_path/serve.cert_path methods here to
+   // setup a self-signed TLS certificate.
+
+   tokio::spawn(fut);
+   let stream = UnboundedReceiverStream::new(rx);
+
+   fn streamf<S, T>(state: &mut (S, T)) -> &mut S { &mut state.0 }
+
+   StatefulListener::new((stream, stop_token), streamf, |state: &mut (_, AsyncStopToken)| state.1.clone())
 }
 
 #[tokio::main]
@@ -181,7 +194,13 @@ async fn handle_message(cx: UpdateWithCx<AutoSend<Bot>, Message>, dialogue: Dial
                 from.id,
                 ChatPermissions::default(),
             )
-            .until_date(cx.update.date as u64 + 3600u64)
+            // .until_date(cx.update.date as i64 + 3600i64)
+            .until_date(
+               DateTime::<Utc>::from_utc(
+                   NaiveDateTime::from_timestamp(cx.update.date as i64, 0),
+                   Utc,
+               ) + Duration::hours(1)
+            )
             .await;
 
             // Notify chat members
@@ -217,6 +236,6 @@ async fn is_admin(bot: & AutoSend<Bot>, chat_id: i64, user_id: i64) -> bool {
 
    set::is_admin(user_id) || (
       member.is_ok()
-      && member.unwrap().kind.can_restrict_members().unwrap_or(false)
+      && member.unwrap().kind.can_restrict_members()
    )
 }

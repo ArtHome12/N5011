@@ -19,7 +19,7 @@ use crate::settings as set;
 
 
 // FSM states
-#[derive(Transition, From)]
+#[derive(Transition, From, Clone)]
 pub enum Dialogue {
    Start(StartState),
    Command(CommandState),
@@ -73,6 +73,7 @@ fn one_button_markup(label: &'static str) -> ReplyMarkup {
 }
 
 
+#[derive(Clone)]
 pub struct StartState {
    restarted: bool,
 }
@@ -114,6 +115,7 @@ async fn start(state: StartState, cx: TransitionIn<AutoSend<Bot>>, _ans: String,
    next(CommandState { user_id, is_admin })
 }
 
+#[derive(Clone)]
 pub struct CommandState {
    user_id: i64,
    is_admin: bool,
@@ -158,6 +160,7 @@ async fn select_command(state: CommandState, cx: TransitionIn<AutoSend<Bot>>, an
 }
 
 // #[derive(Generic)]
+#[derive(Clone)]
 pub struct OriginState {
    state: CommandState,
 }
@@ -181,6 +184,7 @@ async fn origin(state: OriginState, cx: TransitionIn<AutoSend<Bot>>, ans: String
 }
 
 // #[derive(Generic)]
+#[derive(Clone)]
 pub struct IntervalState {
    state: CommandState,
 }
